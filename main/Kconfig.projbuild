@@ -1,0 +1,104 @@
+menu "ESP32-S3-Touch-LCD-7 Configuration"
+    menu "GPIO assignment"
+        config LCD_VSYNC_GPIO
+            int "VSYNC GPIO"
+            default 3
+            help
+                GPIO pin number for VSYNC signal.
+        config LCD_HSYNC_GPIO
+            int "HSYNC GPIO"
+            default 46
+            help
+                GPIO pin number for HSYNC signal.
+        config LCD_DE_GPIO
+            int "DE GPIO"
+            default 5
+            help
+                GPIO pin number for DE signal.
+        config LCD_PCLK_GPIO
+            int "PCLK GPIO"
+            default 7
+            help
+                GPIO pin number for PCLK signal.
+        config LCD_D0_B3_GPIO
+            int "DATA0 BLUE3 GPIO"
+            default 14
+            help
+                GPIO pin number for data bus[0].
+        config LCD_D1_B4_GPIO
+            int "DATA1 BLUE4 GPIO"
+            default 38
+            help
+                GPIO pin number for data bus[1].
+        config LCD_D2_B5_GPIO
+            int "DATA2 BLUE5 GPIO"
+            default 18
+            help
+                GPIO pin number for data bus[2].
+        config LCD_D3_B6_GPIO
+            int "DATA3 BLUE6 GPIO"
+            default 17
+            help
+                GPIO pin number for data bus[3].
+        config LCD_D4_B7_GPIO
+            int "DATA4 BLUE7 GPIO"
+            default 10
+            help
+                GPIO pin number for data bus[4].
+        config LCD_D5_G2_GPIO
+            int "DATA5 GREEN2 GPIO"
+            default 39
+            help
+                GPIO pin number for data bus[5].
+        config LCD_D6_G3_GPIO
+            int "DATA6 GREEN3 GPIO"
+            default 0
+            help
+                GPIO pin number for data bus[6].
+        config LCD_D7_G4_GPIO
+            int "DATA7 GREEN4 GPIO"
+            default 45
+            help
+                GPIO pin number for data bus[7].
+        config LCD_D8_G5_GPIO
+            int "DATA8 GREEN5 GPIO"
+            default 48
+            help
+                GPIO pin number for data bus[8].
+        config LCD_D9_G6_GPIO
+            int "DATA9 GREEN6 GPIO"
+            default 47
+            help
+                GPIO pin number for data bus[9].
+        config LCD_D10_G7_GPIO
+            int "DATA10 GREEN7 GPIO"
+            default 21
+            help
+                GPIO pin number for data bus[10].
+        config LCD_D11_R3_GPIO
+            int "DATA11 RED3 GPIO"
+            default 1
+            help
+                GPIO pin number for data bus[11].
+        config LCD_D12_R4_GPIO
+            int "DATA12 RED4 GPIO"
+            default 2
+            help
+                GPIO pin number for data bus[12].
+        config LCD_D13_R5_GPIO
+            int "DATA13 RED5 GPIO"
+            default 42
+            help
+                GPIO pin number for data bus[13].
+        config LCD_D14_R6_GPIO
+            int "DATA14 RED6 GPIO"
+            default 41
+            help
+                GPIO pin number for data bus[14].
+        config LCD_D15_R7_GPIO
+            int "DATA15 RED7 GPIO"
+            default 40
+            help
+                GPIO pin number for data bus[15].
+    endmenu
+endmenu
