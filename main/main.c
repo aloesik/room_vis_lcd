@@ -6,9 +6,9 @@
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_panel_rgb.h"
 #include "lvgl.h"
+#include "lvgl_gui.h"
 
-/* Configuration according to used LCD */
-#define LCD_PCLK_HZ     (25 * 1000 * 1000)  // Refresh Rate = 25000000/(4+8+8+800)(4+8+8+480) = 60Hz
+/* Configuration according to used LCD: ESP32-S3-Touch-LCD-7 Waveshare 27078*/
 #define LCD_H_RES       800
 #define LCD_V_RES       480
 #define LCD_HSYNC       4
@@ -17,6 +17,7 @@
 #define LCD_VSYNC       4
 #define LCD_VBP         16
 #define LCD_VFP         16
+#define LCD_PCLK_HZ     (25 * 1000 * 1000)  // Refresh Rate = 25000000/(4+8+8+800)(4+8+8+480) = 60Hz
 
 #define LCD_BK_LIGHT_ON_LEVEL   1
 #define LCD_BK_LIGHT_OFF_LEVEL  !LCD_BK_LIGHT_ON_LEVEL
@@ -39,6 +40,7 @@
 uint32_t draw_buf[DRAW_BUF_SIZE / 4];
 
 static const char *TAG = "room_vis";
+
 
 static void lcd_init_panel(esp_lcd_panel_handle_t *panel)
 {
@@ -81,23 +83,37 @@ static void lcd_init_panel(esp_lcd_panel_handle_t *panel)
     ESP_LOGI(TAG, "LCD panel initialized.");
 }
 
+/* LVGL periodic tick using esp_timer */
+static void lvgl_tick_timer_cb(void *arg)
+{
+    lv_tick_inc(LVGL_TICK_PERIOD_MS);
+}
+
+/* LVGL main task */
+static void lvgl_task(void *arg)
+{
+    while (1)
+    {
+        lv_task_handler();
+        vTaskDelay(pdMS_TO_TICKS(LVGL_TASK_DELAY_MS));
+    }
+}
+
 void app_main(void)
 {
     esp_lcd_panel_handle_t panel;
     lcd_init_panel(&panel);
 
-    lv_init(); 
-    // Register print function for debugging 
-    lv_log_register_print_cb(log_print); 
-    
-    // Create a display object 
-    lv_display_t * disp; 
-    // Initialize the TFT display using the TFT_eSPI library 
-    disp = lv_tft_espi_create(SCREEN_WIDTH, SCREEN_HEIGHT, draw_buf, sizeof(draw_buf)); 
-    lv_display_set_rotation(disp, LV_DISPLAY_ROTATION_270); 
-    
-    // Function to draw the GUI 
-    lv_create_main_gui(); 
-    
-    ESP_LOGI(TAG, "Draw done.");
+    lv_init();
+    lv_log_register_print_cb(log_print);
+
+    lv_display_t * disp = lv_display_create(LCD_H_RES, LCD_V_RES);
+    lv_display_set_color_format(disp, LV_COLOR_FORMAT);
+
+    lv_display_set_driver_data(disp, panel);
+    lv_display_set_flush_cb(disp, lvgl_flush_cb);
+
+    lv_display_set_rotation(disp, LV_DISPLAY_ROTATION_90);
+
+    lvgl_create_gui();
 }

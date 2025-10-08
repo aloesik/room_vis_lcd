@@ -19,6 +19,11 @@
   "idf.flashType": "UART",
   "files.associations": {
     "sdkconfig.h": "c",
-    "stdio.h": "c"
+    "stdio.h": "c",
+    "lvgl.h": "c",
+    "esp_lcd_panel_ops.h": "c",
+    "esp_lcd_panel_rgb.h": "c",
+    "esp_log.h": "c",
+    "esp_timer.h": "c"
   }
 }
