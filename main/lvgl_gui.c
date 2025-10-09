@@ -1,55 +1,53 @@
-#include <stdio.h>
-#include "esp_log.h"
-#include "driver/gpio.h"
-#include "esp_lcd_panel_ops.h"
-#include "esp_lcd_panel_rgb.h"
 #include "lvgl.h"
-#include "sdkconfig.h"
 
-// Debugging
-void log_print(lv_log_level_t level, const char * buf)
+/**
+ * @brief Create a text label on the LVGL screen.
+ * 
+ * @param parent       Parent object (e.g., lv_screen_active()).
+ * @param text         Text to display.
+ * @param align        Alignment (e.g., LV_ALIGN_CENTER, LV_ALIGN_TOP_LEFT, etc.).
+ * @param x_ofs        X offset relative to the alignment point.
+ * @param y_ofs        Y offset relative to the alignment point.
+ * @param font         Pointer to font (e.g., &lv_font_montserrat_20).
+ * @param text_color   Text color in LVGL format (e.g., lv_color_hex(0xFFFFFF)).
+ * 
+ * @return lv_obj_t*   Pointer to the created label object.
+ */
+static lv_obj_t* draw_text_label(lv_obj_t *parent, const char *text,
+                                 lv_align_t align, int x_ofs, int y_ofs,
+                                 const lv_font_t *font, lv_color_t text_color)
 {
-    LV_UNUSED(level);
-    ESP_LOGI("LVGL", "%s", buf);
-}
+    // Create new label object
+    lv_obj_t *label = lv_label_create(parent);
+    lv_label_set_text(label, text);
+    lv_obj_align(label, align, x_ofs, y_ofs);
 
-// Flush ready notification
-bool notify_lvgl_flush_ready(esp_lcd_panel_handle_t panel, const esp_lcd_rgb_panel_event_data_t *event_data, void *user_ctx)
-{
-    lv_display_t *disp = (lv_display_t *)user_ctx;
-    lv_display_flush_ready(disp);
-    return false;
-}
-
-// Flush callback
-void lvgl_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
-{
-    esp_lcd_panel_handle_t panel_handle = lv_display_get_user_data(disp);
-    int offsetx1 = area->x1;
-    int offsetx2 = area->x2;
-    int offsety1 = area->y1;
-    int offsety2 = area->y2;
-    esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, px_map);
-}
-
-void increase_lvgl_tick(void *arg)
-{
-    /* Tell LVGL how many milliseconds has elapsed */
-    lv_tick_inc(2);
-}
-
-void lvgl_create_gui(void)
-{
-    // Create text label
-    lv_obj_t * text_label = lv_label_create(lv_screen_active());
-    lv_label_set_text(text_label, "Hello, world!");
-    lv_obj_align(text_label, LV_ALIGN_CENTER, 0, 0);
-    
-    // Create label style
-    static lv_style_t style_text_label;
-    lv_style_init(&style_text_label); 
-    lv_style_set_text_font(&style_text_label, LV_FONT_MONTSERRAT_18);
+    // Create and configure style for text
+    static lv_style_t style;
+    lv_style_init(&style);
+    lv_style_set_text_font(&style, font);
+    lv_style_set_text_color(&style, text_color);
 
     // Apply style to the label
-    lv_obj_add_style(text_label, &style_text_label, 0);  
+    lv_obj_add_style(label, &style, 0);
+
+    return label;
+}
+
+void lvgl_create_gui(lv_display_t *disp)
+{
+    // Set background color
+    lv_obj_set_style_bg_color(lv_screen_active(), lv_color_hex(0x4fc3f7), 0);
+
+    // Example 1: centered label
+    draw_text_label(lv_screen_active(), "Hello! o/",
+                    LV_ALIGN_CENTER, 0, 0,
+                    &lv_font_montserrat_20,
+                    lv_color_hex(0xFFFFFF));
+
+    // Example 2: bottom label
+    draw_text_label(lv_screen_active(), "Status: OK",
+                    LV_ALIGN_BOTTOM_MID, 0, -30,
+                    &lv_font_montserrat_14,
+                    lv_color_hex(0x000000));
 }

@@ -24,6 +24,8 @@
     "esp_lcd_panel_ops.h": "c",
     "esp_lcd_panel_rgb.h": "c",
     "esp_log.h": "c",
-    "esp_timer.h": "c"
+    "esp_timer.h": "c",
+    "param.h": "c",
+    "esp_err.h": "c"
   }
 }
