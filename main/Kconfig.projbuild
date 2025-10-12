@@ -1,5 +1,5 @@
 menu "ESP32-S3-Touch-LCD-7 Configuration"
-    menu "GPIO assignment"
+    menu "LVGL GPIO assignment"
         config LCD_VSYNC_GPIO
             int "VSYNC GPIO"
             default 3
@@ -100,5 +100,19 @@ menu "ESP32-S3-Touch-LCD-7 Configuration"
             default 40
             help
                 GPIO pin number for data bus[15].
+    endmenu
+
+    menu "Touch GPIO assignment"
+    config I2C_MASTER_SCL
+        int "SCL GPIO Num"
+        default 9
+        help
+            GPIO pin number for I2C Master clock line.
+
+    config I2C_MASTER_SDA
+        int "SDA GPIO Num"
+        default 8
+        help
+            GPIO pin number for I2C Master data line.
     endmenu
 endmenu

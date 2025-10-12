@@ -26,6 +26,18 @@
     "esp_log.h": "c",
     "esp_timer.h": "c",
     "param.h": "c",
-    "esp_err.h": "c"
+    "esp_err.h": "c",
+    "esp_lcd_touch_gt911.h": "c",
+    "esp_lcd_touch.h": "c",
+    "chrono": "c",
+    "complex": "c",
+    "random": "c",
+    "format": "c",
+    "future": "c",
+    "limits": "c",
+    "regex": "c",
+    "tuple": "c",
+    "variant": "c",
+    "task.h": "c"
   }
 }

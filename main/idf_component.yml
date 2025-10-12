@@ -16,3 +16,4 @@ dependencies:
   #   public: true
   lvgl/lvgl: ^9.3.0
   espressif/esp_lcd_touch: ^1.1.2
+  espressif/esp_lcd_touch_gt911: ^1.1.3
