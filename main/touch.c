@@ -78,7 +78,7 @@ esp_err_t touch_init_i2c_and_driver(void)
         .flags = {
             .swap_xy = 0,
             .mirror_x = 1,
-            .mirror_y = 0,
+            .mirror_y = 1,
         },
         .driver_data = &tp_gt911_config,
     };

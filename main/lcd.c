@@ -66,13 +66,12 @@ static bool lcd_internal_on_color_trans_done(esp_lcd_panel_handle_t panel_handle
 /* Exported callback pointer used by main.c when registering callbacks. */
 esp_lcd_rgb_panel_draw_buf_complete_cb_t room_vis_lcd_color_cb = lcd_internal_on_color_trans_done;
 
-/* Definition of the panel handle moved from main.c */
 esp_lcd_panel_handle_t panel;
 
-// flush - send pixel data from lvgl buffer to the display
+/* flush - send pixel data from lvgl buffer to the display */
 void lvgl_flush_cb(void *display_ptr, const void *area_ptr, uint8_t *px_map)
 {
-    /* Cast opaque pointers to LVGL types here so the header doesn't need LVGL types. */
+    // Cast opaque pointers to LVGL types here so the header doesn't need LVGL types
     lv_display_t *display = (lv_display_t *)display_ptr;
     const lv_area_t *area = (const lv_area_t *)area_ptr;
 
@@ -90,7 +89,7 @@ void lvgl_flush_cb(void *display_ptr, const void *area_ptr, uint8_t *px_map)
     esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, px_map);
 }
 
-// notify that the flushing has finished
+/* notify that the flushing has finished */
 bool lcd_on_color_trans_done(esp_lcd_panel_handle_t panel, const esp_lcd_rgb_panel_event_data_t *event_data, void *user_ctx)
 {
     lv_display_t *display = (lv_display_t *)user_ctx;   // retrieve the lvgl display object passed during callback registration   

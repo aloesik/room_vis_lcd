@@ -4,9 +4,15 @@ idf_component_register(
         "lvgl_gui.c"
         "touch.c"
         "lcd.c"
-        "pwr_logo.c"
-       
+        "images/pwr_logo.c"
+        "fonts/lv_font_aptos_22.c"
+        "fonts/lv_font_aptos_light_25.c"
+        "api.c"       
     INCLUDE_DIRS
         "."
-    REQUIRES lvgl
+    REQUIRES
+        esp_wifi
+        esp_event
+        nvs_flash
+        esp_timer
 )

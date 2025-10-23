@@ -1,4 +1,3 @@
-// LCD module public header
 #pragma once
 
 #include "esp_lcd_panel_ops.h"

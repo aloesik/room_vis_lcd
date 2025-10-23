@@ -15,12 +15,13 @@
 #include "touch.h"
 #include "lcd.h"
 #include "lvgl_gui.h"
+#include "api.h"
 
 /* Configuration according to application */
 #define LVGL_DRAW_BUF_LINES    120 // number of display lines in each draw buffer
 #define LVGL_TICK_PERIOD_MS    1
-#define LVGL_TASK_STACK_SIZE   (5 * 1024)
-#define LVGL_TASK_PRIORITY     2
+#define LVGL_TASK_STACK_SIZE   (10 * 1024)
+#define LVGL_TASK_PRIORITY     4
 #define LVGL_TASK_MAX_DELAY_MS 10   // 500
 #define LVGL_TASK_MIN_DELAY_MS 1    // 1000 / CONFIG_FREERTOS_HZ
 
@@ -57,6 +58,13 @@ void lvgl_port_task(void *arg)
     }
 }
 
+void wifi_task(void *pv)
+{
+    vTaskDelay(pdMS_TO_TICKS(2000));
+    wifi_init_sta();
+    vTaskDelete(NULL);
+}
+
 void app_main(void)
 {
     /* Initialize LCD */
@@ -74,10 +82,10 @@ void app_main(void)
     lv_display_set_user_data(display, panel);
     lv_display_set_color_format(display, LV_COLOR_FORMAT);
 
-    // Partial buffer - TO BE EXPLAINED
+    /* Partial buffer - TO BE EXPLAINED */
     ESP_LOGI(TAG, "Allocate LVGL draw buffer for PARTIAL mode");
     size_t draw_buffer_sz = LCD_H_RES * LVGL_DRAW_BUF_LINES * PIXEL_SIZE;
-    void *buf1 = heap_caps_malloc(draw_buffer_sz, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    void *buf1 = heap_caps_malloc(draw_buffer_sz, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     assert(buf1);
     lv_display_set_buffers(display, buf1, NULL, draw_buffer_sz, LV_DISPLAY_RENDER_MODE_PARTIAL);
 
@@ -107,11 +115,13 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_timer_start_periodic(lvgl_tick_timer, LVGL_TICK_PERIOD_MS * 1000));
 
     ESP_LOGI(TAG, "Create LVGL task");
-    xTaskCreate(lvgl_port_task, "LVGL", LVGL_TASK_STACK_SIZE, NULL, LVGL_TASK_PRIORITY, NULL);
+    xTaskCreatePinnedToCore(lvgl_port_task, "LVGL", LVGL_TASK_STACK_SIZE, NULL, LVGL_TASK_PRIORITY, NULL, 1);
 
     ESP_LOGI(TAG, "Display LVGL UI");
     // Lock the mutex due to the LVGL APIs are not thread-safe
     _lock_acquire(&lvgl_api_lock);
     lvgl_create_gui(display);
     _lock_release(&lvgl_api_lock);
+
+    xTaskCreatePinnedToCore(wifi_task, "wifi", 4096, NULL, 2, NULL, 0);
 }

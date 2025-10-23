@@ -38,6 +38,7 @@
     "regex": "c",
     "tuple": "c",
     "variant": "c",
-    "task.h": "c"
+    "task.h": "c",
+    "cjson.h": "c"
   }
 }
