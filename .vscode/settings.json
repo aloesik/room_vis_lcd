@@ -39,6 +39,8 @@
     "tuple": "c",
     "variant": "c",
     "task.h": "c",
-    "cjson.h": "c"
+    "cjson.h": "c",
+    "nvs_flash.h": "c",
+    "string.h": "c"
   }
 }

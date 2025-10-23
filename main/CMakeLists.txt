@@ -15,4 +15,5 @@ idf_component_register(
         esp_event
         nvs_flash
         esp_timer
+        esp_http_client
 )

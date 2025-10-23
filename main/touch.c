@@ -25,16 +25,6 @@ void lvgl_touch_cb(lv_indev_t *indev, lv_indev_data_t *data)
         data->point.x = tp_x[0];
         data->point.y = tp_y[0];
         data->state = LV_INDEV_STATE_PRESSED;
-
-        static lv_obj_t *label = NULL;
-        if (label == NULL) 
-        {
-            label = lv_label_create(lv_screen_active());
-            lv_obj_align(label, LV_ALIGN_TOP_RIGHT, -10, 10);
-        }
-        char buf[32];
-        snprintf(buf, sizeof(buf), "X:%d  Y:%d", tp_x[0], tp_y[0]);
-        lv_label_set_text(label, buf);
     } 
     else 
     {
