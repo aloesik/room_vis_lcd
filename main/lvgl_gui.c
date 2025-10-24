@@ -90,7 +90,7 @@ static void *draw_scroll_panel(void)
     scroll_panel = lv_obj_create(lv_scr_act());
     lv_obj_set_size(scroll_panel, 480, 70);
     lv_obj_set_scroll_dir(scroll_panel, LV_DIR_HOR);
-    lv_obj_set_scroll_snap_x(scroll_panel, LV_SCROLL_SNAP_END);
+    lv_obj_set_scroll_snap_x(scroll_panel, LV_SCROLL_SNAP_END | LV_SCROLL_SNAP_START);
     lv_obj_set_flex_flow(scroll_panel, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(scroll_panel, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(scroll_panel, 0, 0);

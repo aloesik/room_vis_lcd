@@ -16,4 +16,5 @@ idf_component_register(
         nvs_flash
         esp_timer
         esp_http_client
+        mbedtls
 )

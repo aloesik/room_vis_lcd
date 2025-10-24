@@ -5,25 +5,33 @@
 #include "esp_http_client.h"
 #include "nvs_flash.h"
 #include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_http_client.h"
+#include "esp_crt_bundle.h"
 
-static const char *TAG = "wifi";
+static const char *TAG_WIFI = "wifi";
+static const char *TAG_HTTP = "http";
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
         esp_wifi_connect();
-    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        ESP_LOGW(TAG, "Reconnecting...");
+    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) 
+    {
+        ESP_LOGW(TAG_WIFI, "Reconnecting...");
         esp_wifi_connect();
-    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
-        ESP_LOGI(TAG, "Connected and got IP");
+    }
+    else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
+        ESP_LOGI(TAG_WIFI, "Connected and got IP");
 }
 
 void wifi_init_sta(void)
 {
     esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
         nvs_flash_erase();
         nvs_flash_init();
     }
@@ -50,5 +58,45 @@ void wifi_init_sta(void)
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    ESP_LOGI(TAG, "Connecting to %s", CONFIG_ESP_WIFI_SSID);
+    ESP_LOGI(TAG_WIFI, "Connecting to %s", CONFIG_ESP_WIFI_SSID);
+}
+
+static void fetch_time_task(void *pv)
+{
+    while (1) 
+    {
+        esp_http_client_config_t config = {
+            .url = "https://apps.usos.pwr.edu.pl/services/apisrv/now",
+            .method = HTTP_METHOD_GET,
+            .crt_bundle_attach = esp_crt_bundle_attach,
+        };
+ 
+        esp_http_client_handle_t client = esp_http_client_init(&config);
+        esp_err_t err = esp_http_client_perform(client);
+
+        if (err == ESP_OK) 
+        {
+            int status = esp_http_client_get_status_code(client);
+            int len = esp_http_client_get_content_length(client);
+            ESP_LOGI(TAG_HTTP, "HTTP GET OK, status=%d, length=%d", status, len);
+
+            char buf[128] = {0};
+            int read = esp_http_client_read_response(client, buf, sizeof(buf) - 1);
+            if (read > 0)
+                ESP_LOGI(TAG_HTTP, "Server time: %s", buf);
+        } 
+        else 
+        {
+            ESP_LOGE(TAG_HTTP, "GET failed: %s", esp_err_to_name(err));
+        }
+
+        esp_http_client_cleanup(client);
+        vTaskDelay(pdMS_TO_TICKS(10000));  // fetch every 10 s
+    }
+}
+
+/* call this after wifi_init_sta() once connected */
+void start_fetch_task(void)
+{
+    xTaskCreate(fetch_time_task, "fetch_time", 4096, NULL, 3, NULL);
 }
