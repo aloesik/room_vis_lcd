@@ -43,6 +43,8 @@
     "nvs_flash.h": "c",
     "string.h": "c",
     "esp_event.h": "c",
-    "lvgl_gui.h": "c"
+    "lvgl_gui.h": "c",
+    "esp_http_client.h": "c",
+    "cstdlib": "c"
   }
 }

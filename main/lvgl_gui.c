@@ -1,8 +1,17 @@
 #include "lvgl.h"
 #include "lvgl_gui.h"
 #include "esp_log.h"
+#include <time.h>
+#include <sys/time.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+
+void lvgl_lock_acquire(void);
+void lvgl_lock_release(void);
 
 LV_IMAGE_DECLARE(pwr_logo);
+
+static SemaphoreHandle_t lvgl_mutex = NULL;
 
 static const char *TAG = "lvgl_gui";
 
@@ -12,9 +21,16 @@ static int chosen_day = 0;
 static lv_obj_t *logo = NULL;
 static lv_obj_t *scroll_panel = NULL;
 static lv_obj_t *table = NULL;
+static lv_timer_t *clock_timer = NULL;
+static lv_obj_t *time_label = NULL;
+static lv_obj_t *date_label = NULL;
+static lv_obj_t *room_label = NULL;
 
+extern const lv_font_t lv_font_aptos_20;
 extern const lv_font_t lv_font_aptos_22;
+extern const lv_font_t lv_font_aptos_light_17;
 extern const lv_font_t lv_font_aptos_light_25;
+extern const lv_font_t lv_font_aptos_semibold_25;
 
 /************************* CALLBACKS *************************/
 static void day_button_cb(lv_event_t * e)
@@ -41,6 +57,24 @@ static void day_button_cb(lv_event_t * e)
     lv_obj_scroll_to_x(scroll_panel, x, LV_ANIM_ON);
 
     ESP_LOGI(TAG, "Button pressed");
+}
+
+static void update_clock_cb(lv_timer_t *timer)
+{
+    time_t now;
+    struct tm timeinfo;
+    time(&now);
+    localtime_r(&now, &timeinfo);
+
+    char time_str[16];
+    char date_str[16];
+    strftime(time_str, sizeof(time_str), "%H:%M:%S", &timeinfo);
+    strftime(date_str, sizeof(date_str), "%d.%m.%Y", &timeinfo);
+
+    lvgl_lock_acquire();
+    lv_label_set_text(time_label, time_str);
+    lv_label_set_text(date_label, date_str);
+    lvgl_lock_release();
 }
 
 /************************* DRAW WIDGETS *************************/
@@ -95,7 +129,7 @@ static void *draw_scroll_panel(void)
     lv_obj_set_flex_align(scroll_panel, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(scroll_panel, 0, 0);
     lv_obj_set_style_pad_column(scroll_panel, 20, 0);
-    lv_obj_align_to(scroll_panel, logo, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+    lv_obj_align_to(scroll_panel, logo, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 10);
     lv_obj_set_scrollbar_mode(scroll_panel, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_border_width(scroll_panel, 1, 0);
     lv_obj_set_style_border_color(scroll_panel, lv_color_hex(0xB32E23), 0);
@@ -130,7 +164,7 @@ static void *draw_scroll_panel(void)
 static void *draw_table(void)
 {
     table = lv_obj_create(lv_scr_act());
-    lv_obj_set_size(table, 480, 665);
+    lv_obj_set_size(table, 480, 660);
     lv_obj_align_to(table, scroll_panel, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 0);
     lv_obj_set_scroll_dir(table, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(table, LV_SCROLLBAR_MODE_AUTO);
@@ -191,6 +225,38 @@ void lvgl_create_gui(lv_display_t *disp)
 {
     // set background color
     lv_obj_set_style_bg_color(lv_scr_act(), lv_color_hex(0xffffff), 0); // white
+    
+    // time
+    time_label = lv_label_create(lv_scr_act());
+    lv_label_set_long_mode(time_label, LV_LABEL_LONG_CLIP);
+    lv_obj_set_width(time_label, 150);
+    lv_obj_set_style_text_align(time_label, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_label_set_text(time_label, "--:--:--");
+    lv_obj_align(time_label, LV_ALIGN_TOP_RIGHT, -5, 5);
+    lv_obj_set_style_text_font(time_label, &lv_font_aptos_20, 0);
+    lv_obj_set_style_text_color(time_label, lv_color_hex(0xB32E23), 0);
+
+    // date
+    date_label = lv_label_create(lv_scr_act());
+    lv_label_set_long_mode(date_label, LV_LABEL_LONG_CLIP);
+    lv_obj_set_width(date_label, 150);
+    lv_obj_set_style_text_align(date_label, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_label_set_text(date_label, "--.--.----");
+    lv_obj_align_to(date_label, time_label, LV_ALIGN_OUT_BOTTOM_RIGHT, 0, 0);
+    lv_obj_set_style_text_font(date_label, &lv_font_aptos_20, 0);
+    lv_obj_set_style_text_color(date_label, lv_color_hex(0xB32E23), 0);
+
+    // room
+    room_label = lv_label_create(lv_scr_act());
+    lv_label_set_long_mode(room_label, LV_LABEL_LONG_CLIP);
+    lv_obj_set_width(room_label, 150);
+    lv_obj_set_style_text_align(room_label, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_label_set_text(room_label, "Sala: 007");
+    lv_obj_align_to(room_label, date_label, LV_ALIGN_OUT_BOTTOM_RIGHT, 0, 0);
+    lv_obj_set_style_text_font(room_label, &lv_font_aptos_light_17, 0);
+
+    // update every 1 s
+    clock_timer = lv_timer_create(update_clock_cb, 1000, NULL);
 
     // add image
     logo = lv_image_create(lv_scr_act());
@@ -199,4 +265,22 @@ void lvgl_create_gui(lv_display_t *disp)
 
     draw_scroll_panel();
     draw_table();
+}
+
+
+void lvgl_lock_init(void)
+{
+    lvgl_mutex = xSemaphoreCreateMutex();
+}
+
+void lvgl_lock_acquire(void)
+{
+    if (lvgl_mutex)
+        xSemaphoreTake(lvgl_mutex, portMAX_DELAY);
+}
+
+void lvgl_lock_release(void)
+{
+    if (lvgl_mutex)
+        xSemaphoreGive(lvgl_mutex);
 }

@@ -60,9 +60,8 @@ void lvgl_port_task(void *arg)
 
 void wifi_task(void *pv)
 {
-    vTaskDelay(pdMS_TO_TICKS(2000));
+    vTaskDelay(pdMS_TO_TICKS(500));
     wifi_init_sta();
-    start_fetch_task();   // begin periodic GET requests
     vTaskDelete(NULL);
 }
 

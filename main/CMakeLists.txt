@@ -5,8 +5,11 @@ idf_component_register(
         "touch.c"
         "lcd.c"
         "images/pwr_logo.c"
+        "fonts/lv_font_aptos_20.c"
         "fonts/lv_font_aptos_22.c"
+        "fonts/lv_font_aptos_light_17.c"
         "fonts/lv_font_aptos_light_25.c"
+        "fonts/lv_font_aptos_semibold_25.c"
         "api.c"       
     INCLUDE_DIRS
         "."
