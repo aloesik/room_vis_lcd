@@ -2,23 +2,25 @@
 #include <unistd.h>
 #include <sys/lock.h>
 #include <sys/param.h>
-#include "sdkconfig.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_timer.h"
-#include "esp_lcd_panel_ops.h"
-#include "esp_lcd_panel_rgb.h"
-#include "driver/gpio.h"
-#include "esp_err.h"
-#include "esp_log.h"
-#include "lvgl.h"
+#include <sdkconfig.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <esp_timer.h>
+#include <esp_lcd_panel_ops.h>
+#include <esp_lcd_panel_rgb.h>
+#include <driver/gpio.h>
+#include <esp_err.h>
+#include <esp_log.h>
+#include <lvgl.h>
+#include <esp_spiffs.h>
+
 #include "touch.h"
 #include "lcd.h"
 #include "lvgl_gui.h"
 #include "api.h"
 
 /* Configuration according to application */
-#define LVGL_DRAW_BUF_LINES    120 // number of display lines in each draw buffer
+#define LVGL_DRAW_BUF_LINES    240 // number of display lines in each draw buffer
 #define LVGL_TICK_PERIOD_MS    1
 #define LVGL_TASK_STACK_SIZE   (10 * 1024)
 #define LVGL_TASK_PRIORITY     4
@@ -58,11 +60,34 @@ void lvgl_port_task(void *arg)
     }
 }
 
-void wifi_task(void *pv)
+void api_task(void *pv)
 {
     vTaskDelay(pdMS_TO_TICKS(500));
     wifi_init_sta();
     vTaskDelete(NULL);
+}
+
+static void init_spiffs(void)
+{
+    esp_vfs_spiffs_conf_t conf = {
+        .base_path = "/spiffs",
+        .partition_label = NULL,
+        .max_files = 5,
+        .format_if_mount_failed = true
+    };
+
+    esp_err_t ret = esp_vfs_spiffs_register(&conf);
+    if (ret != ESP_OK) {
+        ESP_LOGE("SPIFFS", "SPIFFS init failed: %s", esp_err_to_name(ret));
+        return;
+    }
+
+    size_t total = 0, used = 0;
+    ret = esp_spiffs_info(NULL, &total, &used);
+    if (ret == ESP_OK)
+        ESP_LOGI("SPIFFS", "Mounted. Total=%d, Used=%d bytes", total, used);
+    else
+        ESP_LOGW("SPIFFS", "Failed to get info: %s", esp_err_to_name(ret));
 }
 
 void app_main(void)
@@ -74,6 +99,8 @@ void app_main(void)
     ESP_LOGI(TAG, "Install touch panel driver");
     touch_init_i2c_and_driver();
 
+    init_spiffs();
+    
     /* Initialize LVGL */
     ESP_LOGI(TAG, "Initialize LVGL library");
     lv_init();
@@ -97,6 +124,8 @@ void app_main(void)
     lv_indev_set_read_cb(indev, lvgl_touch_cb);
 
     lv_display_set_rotation(display, LV_DISPLAY_ROTATION_270);
+
+    lv_display_set_render_mode(display, LV_DISPLAY_RENDER_MODE_PARTIAL);
 
     ESP_LOGI(TAG, "Register event callbacks");
     esp_lcd_rgb_panel_event_callbacks_t cbs = {
@@ -123,5 +152,5 @@ void app_main(void)
     lvgl_create_gui(display);
     _lock_release(&lvgl_api_lock);
 
-    xTaskCreatePinnedToCore(wifi_task, "wifi", 4096, NULL, 2, NULL, 0);
+    xTaskCreatePinnedToCore(api_task, "wifi", 4096, NULL, 2, NULL, 0);
 }

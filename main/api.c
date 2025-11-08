@@ -1,65 +1,82 @@
-#include "esp_wifi.h"
-#include "esp_event.h"
-#include "esp_log.h"
-#include "esp_err.h"
-#include "esp_http_client.h"
-#include "esp_crt_bundle.h"
-#include "nvs_flash.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "lvgl.h"
-
+#include <esp_wifi.h>
+#include <esp_event.h>
+#include <esp_log.h>
+#include <esp_err.h>
+#include <esp_http_client.h>
+#include <esp_crt_bundle.h>
+#include <nvs_flash.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <lvgl.h>
 #include <string.h>
 #include <time.h>
 #include <sys/time.h>
 #include <sys/socket.h>
 #include <netdb.h>
-
+#include <cJSON.h>
+#include <stdbool.h>
 
 static const char *TAG_WIFI = "wifi";
 static const char *TAG_HTTP = "http";
+static const char *TAG_JSON = "json";
+
+static const char *USOS_CONSUMER_KEY    = "ApHWU9fCxcfjs5teb3Uj";
+static const char *USOS_CONSUMER_SECRET = "YtddWP3Ap8FrWSdqet2gpKvbADpsrhZW6j2vKRey";
+
+static const char *ROOM_ID = "1402"; // change to any room id (currently 002 in M-11)
+
+static cJSON *schedule_root = NULL;
+static bool schedule_ready = false;
 
 static void fetch_time_task(void *pv);
+static void fetch_schedule_task(void *pv);
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
 {
-    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)   // if wifi has started, begin connecting
         esp_wifi_connect();
 
-    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) 
+    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)   // if the station got disconnectred, try reconnecting
     {
-        ESP_LOGW(TAG_WIFI, "Reconnecting...");
+        ESP_LOGW(TAG_WIFI, "Reconnecting..."); 
         esp_wifi_connect();
     }
 
-    else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
+    else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) // if an IP address has been obtained from the router
     {
         ESP_LOGI(TAG_WIFI, "Connected and got IP");
-        xTaskCreate(fetch_time_task, "fetch_time", 4096, NULL, 3, NULL);
+        xTaskCreate(fetch_time_task, "fetch_time", 4096, NULL, 3, NULL);    // task to fetch current date and time
     }
 }
 
+/* Initialize wifi station (client) */
 void wifi_init_sta(void)
 {
+    // initialize nvs (keeps wi-fi credentials)
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
     {
+        // erase and re-init nvs in case of corruption or outdating
         ESP_ERROR_CHECK(nvs_flash_erase());
         ESP_ERROR_CHECK(nvs_flash_init());
     }
 
+    // initialize tcp/ip stack and system event loop
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
+
     esp_netif_create_default_wifi_sta();
 
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    // load defaut wi-fi configuration and initialize wi-fi
+    wifi_init_config_t config = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&config));
 
+    // register event handlers for wi-fi and ip events
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, wifi_event_handler, NULL));
 
-    wifi_config_t wifi_cfg = {
+    wifi_config_t wifi_config = {
         .sta = {
             .ssid = CONFIG_ESP_WIFI_SSID,
             .password = CONFIG_ESP_WIFI_PASSWORD,
@@ -68,14 +85,15 @@ void wifi_init_sta(void)
     };
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
     ESP_LOGI(TAG_WIFI, "Connecting to %s", CONFIG_ESP_WIFI_SSID);
 }
 
+/* Fetch current date and time from api */
 static void fetch_time_task(void *pv)
-{
+{   
     esp_http_client_config_t config = {
         .url = "https://apps.usos.pwr.edu.pl/services/apisrv/now",
         .method = HTTP_METHOD_GET,
@@ -85,42 +103,47 @@ static void fetch_time_task(void *pv)
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
 
+    // open https connection and get headers
     ESP_ERROR_CHECK(esp_http_client_open(client, 0));
     int content_length = esp_http_client_fetch_headers(client);
 
-    char buf[128] = {0};
-    int read_len = esp_http_client_read(client, buf, sizeof(buf) - 1);
-    esp_http_client_close(client);
+    // read response
+    char buf[128] = {0};                                                // temporary buffer for server
+    int read_len = esp_http_client_read(client, buf, sizeof(buf) - 1);  // read body into buffer
+    esp_http_client_close(client);                                      // close connection after reading
 
+    // check if valid data received
     if (read_len > 0)
     {
-        buf[read_len] = '\0';
-        ESP_LOGI(TAG_HTTP, "Raw body: %s", buf);
+        buf[read_len] = '\0';                                      // ensure null termination
+        ESP_LOGI(TAG_HTTP, "Raw body: %s", buf);                   // e.g. "2025-10-27 18:02:22.278700"
 
-        // trim whitespace
+        // remove surrounding quotes
         char *p = buf;
-        while (*p == ' ' || *p == '\n' || *p == '\r' || *p == '\t') p++;
+        if (*p == '"') p++;                                        // skip first quote
+        char *end = strchr(p, '"');                                // find closing quote
+        if (end) *end = '\0';                                      // cut it off
 
-        // remove quotes if present
-        if (*p == '"') p++;
-        char *q = p;
-        while (*q && *q != '"' && *q != '\r' && *q != '\n') q++;
-        *q = '\0';
+        // cut off microseconds (.xxxxxx)
+        char *dot = strchr(p, '.');
+        if (dot) *dot = '\0';                                      // keep only "YYYY-MM-DD HH:MM:SS"
 
-        // keep first 19 chars -> YYYY-MM-DD HH:MM:SS
-        char datetime[20] = {0};
-        strncpy(datetime, p, 19);
-        datetime[19] = '\0';
-        ESP_LOGI(TAG_HTTP, "Parsed datetime: %s", datetime);
+        ESP_LOGI(TAG_HTTP, "Parsed datetime: %s", p);
 
-        struct tm tmv;
-        memset(&tmv, 0, sizeof(tmv));
-        if (strptime(datetime, "%Y-%m-%d %H:%M:%S", &tmv))
+        // convert to time struct and set rtc
+        struct tm tmv = {0};                                        // time structure
+        if (strptime(p, "%Y-%m-%d %H:%M:%S", &tmv))                 // parse string to tm
         {
-            time_t t = mktime(&tmv);
-            struct timeval now = { .tv_sec = t, .tv_usec = 0 };
-            settimeofday(&now, NULL);
+            setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);
+            tzset();
+
+            time_t t = mktime(&tmv);                                // convert tm -> unix time
+            struct timeval now = { .tv_sec = t, .tv_usec = 0 };     // convert to timeval
+            
+            settimeofday(&now, NULL);                               // uipdate system clock
             ESP_LOGI(TAG_HTTP, "RTC updated");
+
+            xTaskCreate(fetch_schedule_task, "fetch_schedule", 8192, NULL, 3, NULL); // fetch room schedule after successful time update
         }
         else
         {
@@ -132,6 +155,121 @@ static void fetch_time_task(void *pv)
         ESP_LOGW(TAG_HTTP, "No data read (len=%d, content_length=%d)", read_len, content_length);
     }
 
+    // cleanup resources and end task
+    esp_http_client_cleanup(client); 
+    vTaskDelete(NULL);
+}
+
+/* Create url to the room's schedule */
+static void create_room_url(char *out, size_t out_sz,
+                            const char *room_id)
+{
+    time_t now = time(NULL);
+    struct tm tm_target;
+    localtime_r(&now, &tm_target);
+
+    // move one year back
+    tm_target.tm_year -= 1;
+    // move one day forward
+    tm_target.tm_mday -= 2;
+    mktime(&tm_target);   // normalize date
+
+    char date_buf[16];
+    strftime(date_buf, sizeof(date_buf), "%Y-%m-%d", &tm_target);
+
+    snprintf(out, out_sz,
+             "http://192.168.0.127:5000/services/tt/room"
+             "?room_id=%s&start=%s&days=1"
+             "&fields=start_time|end_time|course_name|classtype_name|group_number|room_number|building_id",
+             room_id, date_buf);
+}
+
+cJSON *api_get_schedule_root(void)
+{
+    return schedule_root;
+}
+
+static void load_schedule_from_file(void)
+{
+    FILE *file = fopen("/spiffs/schedule.json", "r");
+    if (!file) {
+        ESP_LOGE(TAG_JSON, "Can't open schedule.json");
+        return;
+    }
+
+    fseek(file, 0, SEEK_END);
+    long file_len = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    char *json_buf = malloc(file_len + 1);
+    fread(json_buf, 1, file_len, file);
+    json_buf[file_len] = '\0';
+    fclose(file);
+
+    schedule_root = cJSON_Parse(json_buf);
+    free(json_buf);
+
+    if (!schedule_root)
+        ESP_LOGE(TAG_JSON, "Invalid JSON");
+    else 
+    {
+        schedule_ready = true;
+        ESP_LOGI(TAG_JSON, "Schedule ready");
+    }
+}
+
+bool api_is_schedule_ready(void)
+{
+    return schedule_ready;
+}
+
+/* Fetch schedule and save to JSON file in SPIFFS */
+static void fetch_schedule_task(void *pv)
+{
+    char url[256];
+    create_room_url(url, sizeof(url), ROOM_ID);
+    ESP_LOGI(TAG_HTTP, "Fetching schedule: %s", url);
+
+    esp_http_client_config_t config = {
+        .url = url,
+        .method = HTTP_METHOD_GET,
+        .timeout_ms = 10000,
+        .disable_auto_redirect = true,
+        .skip_cert_common_name_check = true,
+    };
+
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+
+    esp_err_t err = esp_http_client_open(client, 0);
+    if (err != ESP_OK) 
+    {
+        ESP_LOGE(TAG_HTTP, "HTTP open failed: %s", esp_err_to_name(err));
+        vTaskDelete(NULL);
+    }
+
+    int total_len = esp_http_client_fetch_headers(client);
+    ESP_LOGI(TAG_HTTP, "Response length: %d", total_len);
+
+    FILE *f = fopen("/spiffs/schedule.json", "w");
+    if (!f) ESP_LOGE(TAG_HTTP, "Failed to open JSON file for writing");
+
+    char buf[512];
+    int read_len;
+    while ((read_len = esp_http_client_read(client, buf, sizeof(buf))) > 0) 
+    {
+        if (f)
+        {
+            fwrite(buf, 1, read_len, f);
+        }
+    }
+    if (f) fclose(f);
+
+    esp_http_client_close(client);
     esp_http_client_cleanup(client);
+
+    ESP_LOGI(TAG_HTTP, "Schedule JSON saved");
+
+    load_schedule_from_file();
+
     vTaskDelete(NULL);
 }

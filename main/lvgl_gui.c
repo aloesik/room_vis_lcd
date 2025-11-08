@@ -1,10 +1,23 @@
-#include "lvgl.h"
-#include "lvgl_gui.h"
-#include "esp_log.h"
+#include <lvgl.h>
+#include <esp_log.h>
 #include <time.h>
 #include <sys/time.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#include <cJSON.h>
+#include <math.h>
+#include <stdbool.h>
+
+#include "lvgl_gui.h"
+#include "api.h"
+
+#define TABLE_START_HOUR 7
+#define TABLE_END_HOUR   22            // virtual end time, 15 hours total
+#define ROW_H_PX         60
+#define ROW_COUNT        15
+
+#define TABLE_TOTAL_MIN  ((TABLE_END_HOUR - TABLE_START_HOUR) * 60) // 900 min
+#define TABLE_HEIGHT_PX  (ROW_H_PX * ROW_COUNT)                     // 900 px
 
 void lvgl_lock_acquire(void);
 void lvgl_lock_release(void);
@@ -30,7 +43,7 @@ extern const lv_font_t lv_font_aptos_20;
 extern const lv_font_t lv_font_aptos_22;
 extern const lv_font_t lv_font_aptos_light_17;
 extern const lv_font_t lv_font_aptos_light_25;
-extern const lv_font_t lv_font_aptos_semibold_25;
+extern const lv_font_t lv_font_aptos_semibold_22;
 
 /************************* CALLBACKS *************************/
 static void day_button_cb(lv_event_t * e)
@@ -124,9 +137,9 @@ static void *draw_scroll_panel(void)
     scroll_panel = lv_obj_create(lv_scr_act());
     lv_obj_set_size(scroll_panel, 480, 70);
     lv_obj_set_scroll_dir(scroll_panel, LV_DIR_HOR);
-    lv_obj_set_scroll_snap_x(scroll_panel, LV_SCROLL_SNAP_END | LV_SCROLL_SNAP_START);
+    //lv_obj_set_scroll_snap_x(scroll_panel, LV_SCROLL_SNAP_END | LV_SCROLL_SNAP_START);
     lv_obj_set_flex_flow(scroll_panel, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(scroll_panel, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(scroll_panel, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(scroll_panel, 0, 0);
     lv_obj_set_style_pad_column(scroll_panel, 20, 0);
     lv_obj_align_to(scroll_panel, logo, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 10);
@@ -171,7 +184,7 @@ static void *draw_table(void)
     lv_obj_set_style_pad_row(table, 0, 0);
     lv_obj_set_style_pad_column(table, 0, 0);
     lv_obj_set_style_pad_all(table, 0, 0);
-    lv_obj_set_scroll_snap_y(table, LV_SCROLL_SNAP_END);
+    //lv_obj_set_scroll_snap_y(table, LV_SCROLL_SNAP_END);
 
     lv_obj_clear_flag(table, LV_OBJ_FLAG_SCROLL_ELASTIC);
 
@@ -221,6 +234,99 @@ static void *draw_table(void)
     return table;
 }
 
+static void draw_schedule(lv_obj_t *parent)
+{
+    cJSON *root = api_get_schedule_root();
+    if (!root) return;
+
+    int arr_size = cJSON_GetArraySize(root);        // get number of elements (lessons) in json file
+    ESP_LOGI(TAG, "Parsed %d lessons", arr_size);
+
+    for (int i = 0; i < arr_size; i++)
+    {
+        cJSON *item = cJSON_GetArrayItem(root, i);  // get element's index
+        if (!item) continue;
+
+        // fetch needed data in string format
+        const char *start_str = cJSON_GetObjectItem(item, "start_time")->valuestring;
+        const char *end_str   = cJSON_GetObjectItem(item, "end_time")->valuestring;
+        const char *title_pl  = cJSON_GetObjectItem(cJSON_GetObjectItem(item, "course_name"), "pl")->valuestring;
+
+        // convert time strings to minutes since 7:00
+        int sh, sm, eh, em; // start hour, start minute, end...
+        sscanf(start_str + 11, "%d:%d", &sh, &sm);
+        sscanf(end_str   + 11, "%d:%d", &eh, &em);
+        int start_min = (sh * 60 + sm) - (TABLE_START_HOUR * 60);
+        int end_min   = (eh * 60 + em) - (TABLE_START_HOUR * 60);
+        if (start_min < 0) start_min = 0;
+        if (end_min > TABLE_TOTAL_MIN) end_min = TABLE_TOTAL_MIN;
+        int duration_min = end_min - start_min;
+
+        // compute pixel position and height
+        float px_per_min = (float)TABLE_HEIGHT_PX / (float)TABLE_TOTAL_MIN;
+        int y = (int)round(start_min * px_per_min);
+        int h = (int)round(duration_min * px_per_min);
+
+        // craw rectangle for the lesson
+        lv_obj_t *rect = lv_obj_create(parent);
+        lv_obj_set_size(rect, 360, h);
+        lv_obj_set_style_bg_color(rect, lv_color_hex(0xE2AD9B), 0);
+        lv_obj_set_style_radius(rect, 10, 0);
+        lv_obj_set_style_border_width(rect, 0, 0);
+        lv_obj_set_style_pad_all(rect, 4, 0);
+        lv_obj_set_scrollbar_mode(rect, LV_SCROLLBAR_MODE_OFF);
+
+        // position inside scrollable content coordinates
+        lv_obj_set_pos(rect, 110, y);
+
+        // add labels
+        char time_label[16];
+        snprintf(time_label, sizeof(time_label), "%02d:%02d", sh, sm);
+
+        lv_obj_t *lbl_time = lv_label_create(rect);
+        lv_label_set_text(lbl_time, time_label);
+        lv_obj_set_style_text_font(lbl_time, &lv_font_aptos_22, 0);
+        lv_obj_align(lbl_time, LV_ALIGN_BOTTOM_RIGHT, -5, -5);
+
+        lv_obj_t *lbl_title = lv_label_create(rect);
+        lv_label_set_text(lbl_title, title_pl);
+        lv_obj_set_style_text_font(lbl_title, &lv_font_aptos_semibold_22, 0);
+        lv_label_set_long_mode(lbl_title, LV_LABEL_LONG_WRAP);
+        lv_obj_set_width(lbl_title, 360);
+        lv_obj_align(lbl_title, LV_ALIGN_TOP_LEFT, 5, 5);
+    }
+    ESP_LOGI(TAG, "Drawing schedule rectangles...");
+}
+
+static void draw_room_label(void)
+{
+    cJSON *root = api_get_schedule_root();
+    if (!root || cJSON_GetArraySize(root) == 0) return;
+
+    cJSON *first = cJSON_GetArrayItem(root, 0);
+    if (!first) return;
+
+    cJSON *room = cJSON_GetObjectItem(first, "room_number");
+    cJSON *building = cJSON_GetObjectItem(first, "building_id");
+    if (!cJSON_IsString(room) || !cJSON_IsString(building)) return;
+
+    char text[32];
+    snprintf(text, sizeof(text), "Sala: %s, %s", room->valuestring, building->valuestring);
+    lv_label_set_text(room_label, text);
+}
+
+static void check_schedule_cb(lv_timer_t *t)
+{
+    if (!api_is_schedule_ready()) return;  // not ready yet
+    lv_timer_del(t);
+
+    cJSON *root = api_get_schedule_root();
+    if (!root) return;
+
+    draw_schedule(table);
+    draw_room_label();
+}
+
 void lvgl_create_gui(lv_display_t *disp)
 {
     // set background color
@@ -251,7 +357,7 @@ void lvgl_create_gui(lv_display_t *disp)
     lv_label_set_long_mode(room_label, LV_LABEL_LONG_CLIP);
     lv_obj_set_width(room_label, 150);
     lv_obj_set_style_text_align(room_label, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_label_set_text(room_label, "Sala: 007");
+    lv_label_set_text(room_label, "Sala: ---");
     lv_obj_align_to(room_label, date_label, LV_ALIGN_OUT_BOTTOM_RIGHT, 0, 0);
     lv_obj_set_style_text_font(room_label, &lv_font_aptos_light_17, 0);
 
@@ -265,8 +371,8 @@ void lvgl_create_gui(lv_display_t *disp)
 
     draw_scroll_panel();
     draw_table();
+    lv_timer_create(check_schedule_cb, 1000, NULL); // check every second
 }
-
 
 void lvgl_lock_init(void)
 {

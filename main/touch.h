@@ -1,7 +1,7 @@
 #pragma once
 
-#include "esp_lcd_touch.h"
-#include "lvgl.h"
+#include <esp_lcd_touch.h>
+#include <lvgl.h>
 
 extern esp_lcd_touch_handle_t tp;
 

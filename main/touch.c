@@ -1,10 +1,11 @@
-#include "touch.h"
-#include "esp_lcd_touch_gt911.h"
-#include "esp_lcd_touch.h"
-#include "esp_log.h"
-#include "driver/i2c.h"
-#include "driver/gpio.h"
+#include <esp_lcd_touch_gt911.h>
+#include <esp_lcd_touch.h>
+#include <esp_log.h>
+#include <driver/i2c.h>
+#include <driver/gpio.h>
 #include <stdio.h>
+
+#include "touch.h"
 
 static const char *TAG = "touch";
 

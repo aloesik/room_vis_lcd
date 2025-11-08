@@ -9,7 +9,7 @@ idf_component_register(
         "fonts/lv_font_aptos_22.c"
         "fonts/lv_font_aptos_light_17.c"
         "fonts/lv_font_aptos_light_25.c"
-        "fonts/lv_font_aptos_semibold_25.c"
+        "fonts/lv_font_aptos_semibold_22.c"
         "api.c"       
     INCLUDE_DIRS
         "."
@@ -20,4 +20,6 @@ idf_component_register(
         esp_timer
         esp_http_client
         mbedtls
+        spiffs
+        json
 )
