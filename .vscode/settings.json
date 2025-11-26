@@ -48,6 +48,18 @@
     "cstdlib": "c",
     "freertos.h": "c",
     "time.h": "c",
-    "socket.h": "c"
+    "socket.h": "c",
+    "charconv": "c",
+    "*.inc": "c",
+    "lock.h": "c",
+    "esp_io_expander.h": "c",
+    "esp_io_expander_ch422g.h": "c",
+    "i2c_master.h": "c",
+    "gpio.h": "c",
+    "esp_sleep.h": "c",
+    "esp_check.h": "c",
+    "rtc_io.h": "c",
+    "lcd.h": "c",
+    "api.h": "c"
   }
 }

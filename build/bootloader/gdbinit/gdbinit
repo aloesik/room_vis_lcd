@@ -1,0 +1,2 @@
+source D:/vs_esp/projects/room_vis_lcd/build/bootloader/gdbinit/symbols
+source D:/vs_esp/projects/room_vis_lcd/build/bootloader/gdbinit/connect

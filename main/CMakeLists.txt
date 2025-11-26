@@ -1,18 +1,20 @@
 idf_component_register(
     SRCS
-        "main.c"
-        "lvgl_gui.c"
-        "touch.c"
-        "lcd.c"
+        "src/main.c"
+        "src/lvgl_gui.c"
+        "src/touch.c"
+        "src/lcd.c"
+        "src/api.c"
+        "src/sleep.c"    
         "images/pwr_logo.c"
         "fonts/lv_font_aptos_20.c"
         "fonts/lv_font_aptos_22.c"
         "fonts/lv_font_aptos_light_17.c"
         "fonts/lv_font_aptos_light_25.c"
-        "fonts/lv_font_aptos_semibold_22.c"
-        "api.c"       
+        "fonts/lv_font_aptos_semibold_22.c"   
     INCLUDE_DIRS
         "."
+        "inc"
     REQUIRES
         esp_wifi
         esp_event
