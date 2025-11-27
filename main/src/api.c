@@ -16,6 +16,8 @@
 #include <sys/time.h>
 #include <time.h>
 
+#define PROXY 1
+
 static const char *TAG_WIFI = "wifi";
 static const char *TAG_HTTP = "http";
 static const char *TAG_JSON = "json";
@@ -30,8 +32,7 @@ cJSON *schedule_root = NULL;
 
 const char *day_name[] = {
     "NIEDZIELA", "PONIEDZIAŁEK", "WTOREK",
-    "ŚRODA", "CZWARTEK", "PIĄTEK", "SOBOTA"
-};
+    "ŚRODA", "CZWARTEK", "PIĄTEK", "SOBOTA"};
 
 int current_day = 0;
 
@@ -205,12 +206,24 @@ static void create_room_url(char *url_buf, size_t url_buf_size, const char *room
     char date_buf[16];
     strftime(date_buf, sizeof(date_buf), "%Y-%m-%d", &tm_target); // convert time into formatted date
 
-    // create url for particular room and date
-    snprintf(url_buf, url_buf_size,
-             "http://192.168.0.127:5000/services/tt/room"
-             "?room_id=%s&start=%s&days=7"
-             "&fields=start_time|end_time|course_name|classtype_name|group_number|room_number|building_id",
-             room_id, date_buf);
+    if (PROXY == 1)
+    {
+        // create url for particular room and date
+        snprintf(url_buf, url_buf_size,
+                 "http://192.168.0.127:5000/services/tt/room"
+                 "?room_id=%s&start=%s&days=7"
+                 "&fields=start_time|end_time|course_name|classtype_name|group_number|room_number|building_id",
+                 room_id, date_buf);
+    }
+    else
+    {
+        snprintf(url_buf, url_buf_size,
+                 "https://apps.usos-szkol.pwr.edu.pl/services/tt/room"
+                 "?room_id=%s&start=%s&days=7"
+                 "&fields=start_time|end_time|course_name|classtype_name|group_number|room_number|building_id"
+                 "&consumer_key=%s",
+                 room_id, date_buf, USOS_CONSUMER_KEY);
+    }
 }
 
 /* Parse json schedule into schedule_root */

@@ -60,6 +60,7 @@
     "esp_check.h": "c",
     "rtc_io.h": "c",
     "lcd.h": "c",
-    "api.h": "c"
+    "api.h": "c",
+    "source_location": "c"
   }
 }

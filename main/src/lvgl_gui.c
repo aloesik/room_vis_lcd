@@ -38,6 +38,7 @@ static lv_obj_t *time_label = NULL;
 static lv_obj_t *date_label = NULL;
 static lv_obj_t *room_label = NULL;
 static lv_obj_t *lessons_container = NULL;
+static lv_obj_t *date_underline = NULL;
 
 static lv_timer_t *clock_timer = NULL;
 
@@ -73,14 +74,13 @@ static void day_button_cb(lv_event_t *e)
         }
     }
 
-    lv_coord_t x = lv_obj_get_x(button);
-    lv_obj_scroll_to_x(scroll_panel, x, LV_ANIM_ON);
-
     ESP_LOGI(TAG, "Chosen day: %s", days[chosen_day]);
 
+    // remove all previous lesson rectangles from the container
     uint32_t cnt = lv_obj_get_child_count(lessons_container);
     for (uint32_t i = 0; i < cnt; i++)
     {
+        // delete the first child
         lv_obj_t *child = lv_obj_get_child(lessons_container, 0);
         lv_obj_delete(child);
     }
@@ -91,11 +91,15 @@ static void day_button_cb(lv_event_t *e)
 
 static void update_clock_cb(lv_timer_t *timer)
 {
+    // read current system time (RTC)
     time_t now;
     struct tm timeinfo;
     time(&now);
+
+    // convert raw timestamp into local date/time structure
     localtime_r(&now, &timeinfo);
 
+    // format time and date into strings for LVGL labels
     char time_str[16];
     char date_str[16];
     strftime(time_str, sizeof(time_str), "%H:%M:%S", &timeinfo);
@@ -166,7 +170,8 @@ static void *draw_scroll_panel(void)
     // prevent scrolling outside the content
     lv_obj_clear_flag(scroll_panel, LV_OBJ_FLAG_SCROLL_ELASTIC);
 
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 5; i++)
+    {
         lv_obj_t *label = draw_text_label(lv_scr_act(), days[i], LV_ALIGN_CENTER, 0, 0, &lv_font_aptos_22, lv_color_hex(0xFFFFFF));
 
         lv_point_t size;
@@ -174,12 +179,15 @@ static void *draw_scroll_panel(void)
         int button_width = size.x + 30;
 
         lv_obj_t *button = draw_button(scroll_panel, day_button_cb, label, LV_ALIGN_CENTER, 0, 0, button_width, 40);
-        lv_obj_add_event_cb(button, day_button_cb, LV_EVENT_CLICKED, (void*)i);
+        lv_obj_add_event_cb(button, day_button_cb, LV_EVENT_CLICKED, (void *)i);
 
-        if (i == chosen_day) {
+        if (i == chosen_day)
+        {
             lv_obj_set_style_bg_color(button, lv_color_hex(0xB32E23), 0);
             lv_obj_set_style_text_color(label, lv_color_hex(0xFFFFFF), 0);
-        } else {
+        }
+        else
+        {
             lv_obj_set_style_bg_color(button, lv_color_hex(0xFFFFFF), 0);
             lv_obj_set_style_text_color(label, lv_color_hex(0x000000), 0);
         }
@@ -275,7 +283,7 @@ static void draw_schedule(lv_obj_t *parent)
         struct tm tm_lesson = {0};
         strptime(start_str, "%Y-%m-%d %H:%M:%S", &tm_lesson);
 
-        int lesson_day = tm_lesson.tm_wday - 1;      // Mon=0 … Fri=4
+        int lesson_day = tm_lesson.tm_wday - 1; // Mon=0 … Fri=4
         if (lesson_day != chosen_day)
             continue;
 
@@ -346,7 +354,7 @@ static void draw_room_label(void)
         return;
 
     char text[32];
-    snprintf(text, sizeof(text), "Sala: %s, %s", room->valuestring, building->valuestring);
+    snprintf(text, sizeof(text), "%s, s: %s", building->valuestring, room->valuestring);
     lv_label_set_text(room_label, text);
 }
 
@@ -391,12 +399,20 @@ void lvgl_create_gui(lv_display_t *disp)
     lv_obj_set_style_text_font(date_label, &lv_font_aptos_20, 0);
     lv_obj_set_style_text_color(date_label, lv_color_hex(0xB32E23), 0);
 
+    // line
+    date_underline = lv_line_create(lv_scr_act());
+    static lv_point_precise_t underline_points[] = {{0, 0}, {120, 0}};
+    lv_line_set_points(date_underline, underline_points, 2);
+    lv_obj_align_to(date_underline, date_label, LV_ALIGN_OUT_BOTTOM_RIGHT, 5, 0);
+    lv_obj_set_style_line_color(date_underline, lv_color_hex(0xB32E23), 0);
+    lv_obj_set_style_line_width(date_underline, 1, 0);
+
     // room
     room_label = lv_label_create(lv_scr_act());
     lv_label_set_long_mode(room_label, LV_LABEL_LONG_CLIP);
     lv_obj_set_width(room_label, 150);
     lv_obj_set_style_text_align(room_label, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_label_set_text(room_label, "Sala: ---");
+    lv_label_set_text(room_label, "---, s. ---");
     lv_obj_align_to(room_label, date_label, LV_ALIGN_OUT_BOTTOM_RIGHT, 0, 0);
     lv_obj_set_style_text_font(room_label, &lv_font_aptos_light_17, 0);
 
