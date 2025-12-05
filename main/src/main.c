@@ -205,4 +205,6 @@ void app_main(void)
     _lock_release(&lvgl_api_lock);
 
     xTaskCreatePinnedToCore(sleep_task, "sleep_task", 4096, NULL, 1, NULL, 0);
+
+    esp_log_level_set("wifi", ESP_LOG_DEBUG);
 }
