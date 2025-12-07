@@ -61,6 +61,7 @@
     "rtc_io.h": "c",
     "lcd.h": "c",
     "api.h": "c",
-    "source_location": "c"
+    "source_location": "c",
+    "sleep.h": "c"
   }
 }

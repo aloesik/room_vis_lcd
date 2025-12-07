@@ -18,10 +18,10 @@ idf_component_register(
     REQUIRES
         esp_wifi
         esp_event
-        nvs_flash
         esp_timer
         esp_http_client
+        json
+        nvs_flash
         mbedtls
         spiffs
-        json
 )

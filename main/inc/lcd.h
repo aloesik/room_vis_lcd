@@ -23,13 +23,10 @@
 
 extern esp_lcd_panel_handle_t panel;
 
-void lvgl_flush_cb(void *display, const void *area, uint8_t *px_map);
-
 /* Notify LVGL when flush is done */
-extern esp_lcd_rgb_panel_draw_buf_complete_cb_t room_vis_lcd_color_cb;
+extern esp_lcd_rgb_panel_draw_buf_complete_cb_t end_flush_cb;
+
+void lvgl_flush_cb(void *display, const void *area, uint8_t *px_map);
 
 /* Initialize the RGB LCD panel and return ESP_OK on success */
 esp_err_t lcd_init(void);
-
-void lcd_destroy(void);
-esp_lcd_panel_handle_t lcd_reinit(void);

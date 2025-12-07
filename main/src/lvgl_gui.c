@@ -31,16 +31,16 @@ static const char *TAG = "lvgl_gui";
 static const char *days[] = {"PONIEDZIAŁEK", "WTOREK", "ŚRODA", "CZWARTEK", "PIĄTEK"};
 static int chosen_day = 0;
 
-static lv_obj_t *logo = NULL;
-static lv_obj_t *scroll_panel = NULL;
-static lv_obj_t *table = NULL;
-static lv_obj_t *time_label = NULL;
-static lv_obj_t *date_label = NULL;
-static lv_obj_t *room_label = NULL;
-static lv_obj_t *lessons_container = NULL;
-static lv_obj_t *date_underline = NULL;
+static lv_obj_t *logo;
+static lv_obj_t *scroll_panel;
+static lv_obj_t *table;
+static lv_obj_t *time_label;
+static lv_obj_t *date_label;
+static lv_obj_t *room_label;
+static lv_obj_t *lessons_container;
+static lv_obj_t *date_underline;
 
-static lv_timer_t *clock_timer = NULL;
+static lv_timer_t *clock_timer;
 
 extern const lv_font_t lv_font_aptos_20;
 extern const lv_font_t lv_font_aptos_22;
