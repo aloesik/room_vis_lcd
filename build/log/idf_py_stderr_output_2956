@@ -1,1 +1,0 @@
-Command: d:\vs_esp\.espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe d:\vs_esp\esp\v5.5.1\esp-idf\components/esptool_py/esptool/esptool.py -p COM5 -b 460800 --before default_reset --after hard_reset --chip esp32s3 erase_flash

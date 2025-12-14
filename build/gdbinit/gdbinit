@@ -1,2 +1,2 @@
-source D:/vs_esp/projects/room_vis_lcd/build/gdbinit/symbols
-source D:/vs_esp/projects/room_vis_lcd/build/gdbinit/connect
+source D:/projects/vs_esp/room_vis_lcd/build/gdbinit/symbols
+source D:/projects/vs_esp/room_vis_lcd/build/gdbinit/connect

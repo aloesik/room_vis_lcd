@@ -76,6 +76,7 @@ void wifi_init_sta(void)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
+    // set device as wi-fi client
     esp_netif_create_default_wifi_sta();
 
     // load defaut wi-fi configuration and initialize wi-fi
@@ -109,6 +110,7 @@ static void fetch_time_task(void *pv)
         .url = "https://apps.usos.pwr.edu.pl/services/apisrv/now",
         .method = HTTP_METHOD_GET,
         .crt_bundle_attach = esp_crt_bundle_attach,
+        .timeout_ms = 3000,
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -199,7 +201,7 @@ static void create_room_url(char *url_buf, size_t url_buf_size, const char *room
 
     // temporary before api sync - it returns the same day but 1 year ago
     tm_target.tm_year -= 1; // move one year back
-    tm_target.tm_mday += 1; // move one day forward
+    tm_target.tm_mday -= 20; // move one day forward
 
     mktime(&tm_target); // normalize date - convert to unix again
 
@@ -210,9 +212,9 @@ static void create_room_url(char *url_buf, size_t url_buf_size, const char *room
     {
         // create url for particular room and date
         snprintf(url_buf, url_buf_size,
-                 "http://192.168.0.127:5000/services/tt/room"
+                 "http://192.168.0.217:5000/services/tt/room"
                  "?room_id=%s&start=%s&days=7"
-                 "&fields=start_time|end_time|course_name|classtype_name|group_number|room_number|building_id",
+                 "&fields=start_time|end_time|course_name|classtype_name|group_number|unit_id|room_number|building_id",
                  room_id, date_buf);
     }
     else
@@ -220,7 +222,7 @@ static void create_room_url(char *url_buf, size_t url_buf_size, const char *room
         snprintf(url_buf, url_buf_size,
                  "https://apps.usos-szkol.pwr.edu.pl/services/tt/room"
                  "?room_id=%s&start=%s&days=7"
-                 "&fields=start_time|end_time|course_name|classtype_name|group_number|room_number|building_id"
+                 "&fields=start_time|end_time|course_name|classtype_name|group_number|unit_id|room_number|building_id"
                  "&consumer_key=%s",
                  room_id, date_buf, USOS_CONSUMER_KEY);
     }
@@ -272,8 +274,7 @@ static void fetch_schedule_task(void *pv)
     esp_http_client_config_t config = {
         .url = url,
         .method = HTTP_METHOD_GET,
-        .timeout_ms = 10000,
-        .disable_auto_redirect = true,
+        .timeout_ms = 5000,
     };
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -301,16 +302,10 @@ static void fetch_schedule_task(void *pv)
     int read_len;
     while ((read_len = esp_http_client_read(client, buf, sizeof(buf))) > 0)
     {
-        if (f)
-        {
-            fwrite(buf, 1, read_len, f);
-        }
+        fwrite(buf, 1, read_len, f);
     }
 
-    if (f)
-    {
-        fclose(f);
-    }
+    fclose(f);
 
     esp_http_client_close(client);
     esp_http_client_cleanup(client);

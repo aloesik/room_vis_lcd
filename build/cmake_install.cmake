@@ -1,4 +1,4 @@
-# Install script for directory: D:/vs_esp/projects/room_vis_lcd
+# Install script for directory: D:/projects/vs_esp/room_vis_lcd
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -34,12 +34,12 @@ endif()
 
 # Set path to fallback-tool for dependency-resolution.
 if(NOT DEFINED CMAKE_OBJDUMP)
-  set(CMAKE_OBJDUMP "D:/vs_esp/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump.exe")
+  set(CMAKE_OBJDUMP "D:/esp/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump.exe")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for each subdirectory.
-  include("D:/vs_esp/projects/room_vis_lcd/build/esp-idf/cmake_install.cmake")
+  include("D:/projects/vs_esp/room_vis_lcd/build/esp-idf/cmake_install.cmake")
 
 endif()
 
@@ -58,6 +58,6 @@ endif()
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-  file(WRITE "D:/vs_esp/projects/room_vis_lcd/build/${CMAKE_INSTALL_MANIFEST}"
+  file(WRITE "D:/projects/vs_esp/room_vis_lcd/build/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
 endif()

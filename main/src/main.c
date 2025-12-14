@@ -9,8 +9,8 @@
 #include <freertos/task.h>
 #include <lvgl.h>
 #include <stdio.h>
-#include <sys/lock.h>
 #include <sys/param.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 #include "api.h"
@@ -27,8 +27,6 @@
 #define LVGL_TASK_MAX_DELAY_MS 5 // upper limit for LVGL task sleep
 #define LVGL_TASK_MIN_DELAY_MS 1 // lower limit for LVGL task sleep
 
-static _lock_t lvgl_api_lock;
-
 extern uint32_t touch_timer;
 
 /* Tell LVGL how many ms has elapsed - required for timers and animations */
@@ -43,9 +41,9 @@ void lvgl_port_task(void *arg)
     while (1)
     {
         // LVGL is not thread-safe, so its API must be protected
-        _lock_acquire(&lvgl_api_lock);
+        lvgl_lock_acquire();
         uint32_t delay = lv_timer_handler();
-        _lock_release(&lvgl_api_lock);
+        lvgl_lock_release();
 
         // In case of task watch dog timeout
         delay = MAX(delay, LVGL_TASK_MIN_DELAY_MS);
@@ -74,7 +72,7 @@ static void sleep_task(void *pv)
         uint32_t now = xTaskGetTickCount();
         uint32_t diff_ms = (now - touch_timer) * portTICK_PERIOD_MS;
 
-        if (diff_ms >= 10000) // 10 s of inactivity
+        if (diff_ms >= 30000) // 10 s of inactivity
         {
             enter_deep_sleep();
             touch_timer = xTaskGetTickCount(); // Reset time after wake
@@ -115,6 +113,9 @@ static void spiffs_init(void)
 
 void app_main(void)
 {
+    setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);
+    tzset();
+
     // Initialize LCD
     ESP_ERROR_CHECK(lcd_init());
 
@@ -140,6 +141,8 @@ void app_main(void)
     {
         load_schedule_from_file();
     }
+
+    lvgl_lock_init();
 
     // Initialize LVGL
     lv_init();
@@ -171,8 +174,7 @@ void app_main(void)
     // LVGL tick source using ESP timer
     const esp_timer_create_args_t lvgl_tick_timer_args = {
         .callback = &increase_lvgl_tick,
-        .name = "lvgl_tick"
-    };
+        .name = "lvgl_tick"};
     esp_timer_handle_t lvgl_tick_timer;
     ESP_ERROR_CHECK(esp_timer_create(&lvgl_tick_timer_args, &lvgl_tick_timer));
     ESP_ERROR_CHECK(esp_timer_start_periodic(lvgl_tick_timer, LVGL_TICK_PERIOD_MS * 1000));
@@ -181,9 +183,9 @@ void app_main(void)
     xTaskCreatePinnedToCore(lvgl_port_task, "LVGL", LVGL_TASK_STACK_SIZE, NULL, LVGL_TASK_PRIORITY, NULL, 1);
 
     // Lock the mutex due to the LVGL APIs are not thread-safe
-    _lock_acquire(&lvgl_api_lock);
+    lvgl_lock_acquire();
     lvgl_create_gui(display);
-    _lock_release(&lvgl_api_lock);
+    lvgl_lock_release();
 
     // Background sleep monitoring task
     xTaskCreatePinnedToCore(sleep_task, "sleep_task", 4096, NULL, 1, NULL, 0);

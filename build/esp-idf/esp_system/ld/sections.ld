@@ -1,6 +1,6 @@
 /* Automatically generated file; DO NOT EDIT */
 /* Espressif IoT Development Framework Linker Script */
-/* Generated from: D:\vs_esp\projects\room_vis_lcd\build\esp-idf\esp_system\ld\sections.ld.in */
+/* Generated from: D:\projects\vs_esp\room_vis_lcd\build\esp-idf\esp_system\ld\sections.ld.in */
 
 /*
 

@@ -1,4 +1,4 @@
-# Install script for directory: D:/vs_esp/projects/room_vis_lcd/managed_components/espressif__esp_lcd_touch_gt911
+# Install script for directory: D:/projects/vs_esp/room_vis_lcd/managed_components/espressif__esp_lcd_touch_gt911
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -34,6 +34,6 @@ endif()
 
 # Set path to fallback-tool for dependency-resolution.
 if(NOT DEFINED CMAKE_OBJDUMP)
-  set(CMAKE_OBJDUMP "D:/vs_esp/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump.exe")
+  set(CMAKE_OBJDUMP "D:/esp/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin/xtensa-esp32s3-elf-objdump.exe")
 endif()
 
