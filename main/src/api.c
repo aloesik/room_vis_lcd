@@ -201,7 +201,7 @@ static void create_room_url(char *url_buf, size_t url_buf_size, const char *room
 
     // temporary before api sync - it returns the same day but 1 year ago
     tm_target.tm_year -= 1; // move one year back
-    tm_target.tm_mday -= 20; // move one day forward
+    tm_target.tm_mday += 1; // move one day forward
 
     mktime(&tm_target); // normalize date - convert to unix again
 

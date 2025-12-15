@@ -9,8 +9,8 @@
 #define LCD_V_RES    480
 
 #define LCD_HSYNC    4
-#define LCD_HBP      8  // Horizontal back porch
-#define LCD_HFP      8  // Horizontal front porch
+#define LCD_HBP      16  // Horizontal back porch
+#define LCD_HFP      16  // Horizontal front porch
 
 #define LCD_VSYNC    4
 #define LCD_VBP      16

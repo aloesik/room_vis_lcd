@@ -1,13 +1,14 @@
+#include <stdbool.h>
+#include <stdint.h>
+#include <sys/time.h>
+#include <time.h>
+
 #include <cJSON.h>
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <lvgl.h>
 #include <math.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <sys/time.h>
-#include <time.h>
 
 #include "api.h"
 #include "lvgl_gui.h"
@@ -31,17 +32,17 @@
 #define TABLE_START_HOUR 7
 #define TABLE_END_HOUR 22 // virtual end time, 15 hours total
 
-#define ROW_H_PX 60
+#define ROW_H_PX 70
 #define ROW_COUNT 15
 
-#define COL1_W 100
-#define COL2_W 380
+#define COL1_W 102
+#define COL2_W 382
 
 #define LESSON_X 110
 #define LESSON_W 360
 
 #define TABLE_TOTAL_MIN ((TABLE_END_HOUR - TABLE_START_HOUR) * 60) // 900 min
-#define TABLE_H_PX (ROW_H_PX * ROW_COUNT)                     // 900 px
+#define TABLE_H_PX (ROW_H_PX * ROW_COUNT)
 
 #define WEEK_BAR_H 35
 #define PWR_LOGO_H 62
@@ -56,7 +57,6 @@ extern const lv_font_t lv_font_aptos_light_25;
 extern const lv_font_t lv_font_aptos_semibold_22;
 
 static SemaphoreHandle_t lvgl_mutex = NULL;
-
 static const char *TAG = "lvgl_gui";
 
 static const char *days[DAYS_COUNT] = {
@@ -77,25 +77,33 @@ static const char *days_short[7] = {
     "Sb",  // 6
 };
 
-static int chosen_day = 0;
+static int chosen_day = 0; // which day button is pressed
+static int start_day = 0;  // which day is first in the scroll panel
 
 static lv_obj_t *logo;
+static lv_obj_t *week_bar;
+static lv_obj_t *week_label;
 static lv_obj_t *scroll_panel;
 static lv_obj_t *table;
+static lv_obj_t *lessons_container;
+static lv_obj_t *line_indicator;
+static lv_obj_t *circle_indicator;
 static lv_obj_t *time_label;
 static lv_obj_t *date_label;
 static lv_obj_t *room_label;
 static lv_obj_t *date_underline;
-static lv_obj_t *lessons_container;
-static lv_obj_t *time_indicator;
-static lv_obj_t *week_bar;
-static lv_obj_t *week_label;
 
+static void draw_scroll_panel(void);
+static void draw_table(void);
 static void draw_schedule(lv_obj_t *parent);
 static void draw_room_label(void);
 
 void lvgl_lock_acquire(void);
 void lvgl_lock_release(void);
+
+/* =========================
+ * Callbacks / timers
+ * ========================= */
 
 static void day_button_cb(lv_event_t *e)
 {
@@ -125,9 +133,7 @@ static void day_button_cb(lv_event_t *e)
         }
     }
 
-    ESP_LOGI(TAG, "Chosen day: %s", days[chosen_day]);
-
-    lv_obj_scroll_to_view(lv_event_get_target(e), LV_ANIM_OFF);
+    ESP_LOGI(TAG, "Chosen day: %s", days[(start_day + chosen_day) % DAYS_COUNT]);
 
     lv_obj_clean(lessons_container);
     draw_schedule(lessons_container);
@@ -190,32 +196,54 @@ static void update_clock_cb(lv_timer_t *timer)
     lv_label_set_text(time_label, time_with_dow);
     lv_label_set_text(date_label, date_str);
 
-    if (time_indicator)
+    if (line_indicator)
     {
         int now_min = timeinfo.tm_hour * 60 + timeinfo.tm_min;
         int y = now_min - (TABLE_START_HOUR * 60);
 
         if (y < 0 || y > TABLE_TOTAL_MIN)
         {
-            lv_obj_add_flag(time_indicator, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(line_indicator, LV_OBJ_FLAG_HIDDEN);
         }
         else
         {
-            lv_obj_clear_flag(time_indicator, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_set_pos(time_indicator, COL1_W, (lv_coord_t)y);
-            lv_obj_move_foreground(time_indicator);
+            lv_obj_clear_flag(line_indicator, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_pos(line_indicator, COL1_W, (lv_coord_t)y - 1);
+            lv_obj_move_foreground(line_indicator);
+
+            lv_obj_clear_flag(circle_indicator, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_pos(circle_indicator, COL1_W - 5, (lv_coord_t)y - 5);
+            lv_obj_move_foreground(circle_indicator);
         }
     }
     lvgl_lock_release();
 }
+
+static void check_schedule_cb(lv_timer_t *t)
+{
+    if (!schedule_ready)
+        return;
+
+    lv_timer_del(t);
+
+    if (!schedule_root)
+        return;
+
+    lvgl_lock_acquire();
+    draw_schedule(lessons_container);
+    draw_room_label();
+    lvgl_lock_release();
+}
+
+/* =========================
+ * UI builders
+ * ========================= */
 
 static void draw_scroll_panel(void)
 {
     scroll_panel = lv_obj_create(lv_scr_act());
     lv_obj_set_size(scroll_panel, SCROLL_PANEL_W, SCROLL_PANEL_H);
     lv_obj_set_scroll_dir(scroll_panel, LV_DIR_HOR);
-
-    lv_obj_set_style_anim_time(scroll_panel, 0, 0);
 
     lv_obj_clear_flag(scroll_panel, LV_OBJ_FLAG_SCROLL_ELASTIC);
     lv_obj_clear_flag(scroll_panel, LV_OBJ_FLAG_SCROLL_MOMENTUM);
@@ -239,17 +267,19 @@ static void draw_scroll_panel(void)
 
     for (int i = 0; i < DAYS_COUNT; i++)
     {
+        int day_idx = (start_day + i) % DAYS_COUNT;
+
         lv_point_t size;
-        lv_txt_get_size(&size, days[i], &lv_font_aptos_22, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        lv_txt_get_size(&size, days[day_idx], &lv_font_aptos_22, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
         int button_width = size.x + DAY_BTN_TEXT_PAD_X;
 
         lv_obj_t *button = lv_button_create(scroll_panel);
         lv_obj_set_size(button, button_width, DAY_BTN_H);
         lv_obj_set_style_radius(button, DAY_BTN_RADIUS, 0);
-        lv_obj_add_event_cb(button, day_button_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+        lv_obj_add_event_cb(button, day_button_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i); // i = position
 
         lv_obj_t *label = lv_label_create(button);
-        lv_label_set_text(label, days[i]);
+        lv_label_set_text(label, days[day_idx]);
         lv_obj_set_style_text_font(label, &lv_font_aptos_22, 0);
         lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
 
@@ -269,8 +299,8 @@ static void draw_scroll_panel(void)
 static void draw_table(void)
 {
     table = lv_obj_create(lv_scr_act());
-    lv_obj_set_size(table, SCROLL_PANEL_W, TABLE_VISIBLE_H);
-    lv_obj_align_to(table, scroll_panel, LV_ALIGN_OUT_BOTTOM_LEFT, 0, -4);
+    lv_obj_set_size(table, SCROLL_PANEL_W + 4, TABLE_VISIBLE_H);
+    lv_obj_align_to(table, scroll_panel, LV_ALIGN_OUT_BOTTOM_LEFT, -1, -4);
 
     lv_obj_set_style_pad_row(table, 0, 0);
     lv_obj_set_style_pad_column(table, 0, 0);
@@ -322,62 +352,69 @@ static void draw_table(void)
     }
 
     lessons_container = lv_obj_create(table);
-    lv_obj_set_size(lessons_container, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_size(lessons_container, LV_PCT(100), TABLE_H_PX);
     lv_obj_set_style_pad_all(lessons_container, 0, 0);
     lv_obj_set_style_bg_opa(lessons_container, LV_OPA_TRANSP, 0);
     lv_obj_clear_flag(lessons_container, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_border_width(lessons_container, 0, 0);
     lv_obj_set_style_radius(lessons_container, 0, 0);
 
-    time_indicator = lv_obj_create(table);
-    lv_obj_remove_style_all(time_indicator);
-    lv_obj_set_size(time_indicator, COL2_W, 2);
-    lv_obj_set_style_bg_color(time_indicator, lv_color_hex(PWR_COLOR), 0);
-    lv_obj_set_style_bg_opa(time_indicator, LV_OPA_COVER, 0);
-    lv_obj_add_flag(time_indicator, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_set_pos(time_indicator, COL1_W, 0);
+    line_indicator = lv_obj_create(table);
+    lv_obj_remove_style_all(line_indicator);
+    lv_obj_set_size(line_indicator, COL2_W, 2);
+    lv_obj_set_style_bg_color(line_indicator, lv_color_hex(PWR_COLOR), 0);
+    lv_obj_set_style_bg_opa(line_indicator, LV_OPA_COVER, 0);
+    lv_obj_add_flag(line_indicator, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_pos(line_indicator, COL1_W - 5, 0);
+
+    circle_indicator = lv_obj_create(table);
+    lv_obj_remove_style_all(circle_indicator);
+    lv_obj_set_size(circle_indicator, 11, 11);
+    lv_obj_set_style_bg_color(circle_indicator, lv_color_hex(0xffffff), 0);
+    lv_obj_set_style_bg_opa(circle_indicator, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(circle_indicator, 2, 0);
+    lv_obj_set_style_border_color(circle_indicator, lv_color_hex(PWR_COLOR), 0);
+    lv_obj_set_style_border_opa(circle_indicator, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(circle_indicator, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_pos(circle_indicator, COL1_W, 0);
+    lv_obj_add_flag(circle_indicator, LV_OBJ_FLAG_HIDDEN);
 }
 
 static void draw_schedule(lv_obj_t *parent)
 {
-    cJSON *root = schedule_root;
-    if (!root)
+    if (!schedule_root)
         return;
 
-    int arr_size = cJSON_GetArraySize(root);
+    int wanted_day = (start_day + chosen_day) % DAYS_COUNT;
+    const int arr_size = cJSON_GetArraySize(schedule_root);
+    const float px_per_min = (float)TABLE_H_PX / (float)TABLE_TOTAL_MIN;
 
     for (int i = 0; i < arr_size; i++)
     {
-        cJSON *item = cJSON_GetArrayItem(root, i);
+        cJSON *item = cJSON_GetArrayItem(schedule_root, i);
         if (!item)
             continue;
 
         cJSON *start = cJSON_GetObjectItem(item, "start_time");
         cJSON *end = cJSON_GetObjectItem(item, "end_time");
+        if (!cJSON_IsString(start) || !cJSON_IsString(end))
+            continue;
 
         cJSON *course_name = cJSON_GetObjectItem(item, "course_name");
         cJSON *title_pl_item = course_name ? cJSON_GetObjectItem(course_name, "pl") : NULL;
-
-        cJSON *classtype_name = cJSON_GetObjectItem(item, "classtype_name");
-        cJSON *type_pl_item = classtype_name ? cJSON_GetObjectItem(classtype_name, "pl") : NULL;
-
-        if (!cJSON_IsString(start) || !cJSON_IsString(end) || !cJSON_IsString(title_pl_item))
+        if (!cJSON_IsString(title_pl_item))
             continue;
 
         const char *start_str = start->valuestring;
         const char *end_str = end->valuestring;
         const char *title_pl_str = title_pl_item->valuestring;
 
-        const char *type_pl_str = NULL;
-        if (cJSON_IsString(type_pl_item))
-            type_pl_str = type_pl_item->valuestring;
-
         struct tm tm_lesson = {0};
         if (!strptime(start_str, "%Y-%m-%d %H:%M:%S", &tm_lesson))
             continue;
 
         int lesson_day = tm_lesson.tm_wday - 1; // Mon=0 … Fri=4
-        if (lesson_day != chosen_day)
+        if (lesson_day != wanted_day)
             continue;
 
         int sh, sm, eh, em;
@@ -398,9 +435,14 @@ static void draw_schedule(lv_obj_t *parent)
         if (duration_min <= 0)
             continue;
 
-        float px_per_min = (float)TABLE_H_PX / (float)TABLE_TOTAL_MIN;
         int y = (int)roundf((float)start_min * px_per_min);
         int h = (int)roundf((float)duration_min * px_per_min);
+
+        const char *type_pl_str = NULL;
+        cJSON *classtype_name = cJSON_GetObjectItem(item, "classtype_name");
+        cJSON *type_pl_item = classtype_name ? cJSON_GetObjectItem(classtype_name, "pl") : NULL;
+        if (cJSON_IsString(type_pl_item))
+            type_pl_str = type_pl_item->valuestring;
 
         char type_short = '?';
         if (type_pl_str)
@@ -414,6 +456,14 @@ static void draw_schedule(lv_obj_t *parent)
             else if (strstr(type_pl_str, "Sem"))
                 type_short = 'S';
         }
+
+        uint32_t lesson_color = LEC_COLOR;
+        if (type_short == 'L')
+            lesson_color = LAB_COLOR;
+        else if (type_short == 'C')
+            lesson_color = EXE_COLOR;
+        else if (type_short == 'S')
+            lesson_color = SEM_COLOR;
 
         const char *group_str = NULL;
         char group_buf[24] = {0};
@@ -438,31 +488,12 @@ static void draw_schedule(lv_obj_t *parent)
         lv_obj_set_size(rect, LESSON_W, h);
         lv_obj_set_pos(rect, LESSON_X, y);
 
-        uint32_t lesson_color;
-        switch (type_short)
-        {
-        case 'W':
-            lesson_color = LEC_COLOR;
-            break;
-        case 'L':
-            lesson_color = LAB_COLOR;
-            break;
-        case 'C':
-            lesson_color = EXE_COLOR;
-            break;
-        case 'S':
-            lesson_color = SEM_COLOR;
-            break;
-        default:
-            lesson_color = LEC_COLOR;
-            break;
-        }
-
         lv_obj_set_style_bg_color(rect, lv_color_hex(lesson_color), 0);
         lv_obj_set_style_radius(rect, 10, 0);
         lv_obj_set_style_border_width(rect, 0, 0);
         lv_obj_set_style_pad_all(rect, 4, 0);
         lv_obj_set_scrollbar_mode(rect, LV_SCROLLBAR_MODE_OFF);
+        lv_obj_set_scroll_dir(rect, LV_DIR_VER);
 
         char tbuf[16];
         snprintf(tbuf, sizeof(tbuf), "%02d:%02d", sh, sm);
@@ -510,21 +541,9 @@ static void draw_room_label(void)
     lv_label_set_text(room_label, text);
 }
 
-static void check_schedule_cb(lv_timer_t *t)
-{
-    if (!schedule_ready)
-        return;
-
-    lv_timer_del(t);
-
-    if (!schedule_root)
-        return;
-
-    lvgl_lock_acquire();
-    draw_schedule(lessons_container);
-    draw_room_label();
-    lvgl_lock_release();
-}
+/* =========================
+ * Public API
+ * ========================= */
 
 void lvgl_create_gui(lv_display_t *disp)
 {
@@ -592,6 +611,14 @@ void lvgl_create_gui(lv_display_t *disp)
     lv_obj_center(week_label);
 
     update_week_range_label();
+
+    time_t now = time(NULL);
+    struct tm ti;
+    localtime_r(&now, &ti);
+
+    // Mon..Fri -> 0..4, weekend -> fallback to Monday
+    start_day = (ti.tm_wday >= 1 && ti.tm_wday <= 5) ? (ti.tm_wday - 1) : 0;
+    chosen_day = 0; // first button = today
 
     draw_scroll_panel();
     draw_table();
