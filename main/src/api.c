@@ -100,6 +100,8 @@ void wifi_init_sta(void)
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
+    esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
+
     ESP_LOGI(TAG_WIFI, "Connecting to %s", CONFIG_ESP_WIFI_SSID);
 }
 

@@ -1,7 +1,7 @@
 {
     "version":            "1.2",
     "project_name":       "room_vis_lcd",
-    "project_version":    "21cc11a-dirty",
+    "project_version":    "0f136db-dirty",
     "project_path":       "D:/projects/vs_esp/room_vis_lcd",
     "idf_path":           "D:/esp/esp-idf/v5.5.1/esp-idf",
     "build_dir":          "D:/projects/vs_esp/room_vis_lcd/build",

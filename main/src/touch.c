@@ -93,3 +93,16 @@ esp_err_t touch_init_i2c_and_driver(void)
 
     return ESP_OK;
 }
+
+void touch_clear_pending_int(void)
+{
+    if (!tp)
+        return;
+
+    uint16_t x[1] = {0};
+    uint16_t y[1] = {0};
+    uint8_t cnt = 0;
+
+    esp_lcd_touch_read_data(tp);
+    esp_lcd_touch_get_coordinates(tp, x, y, NULL, &cnt, 1);
+}

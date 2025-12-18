@@ -28,6 +28,7 @@
 #define LVGL_TASK_MIN_DELAY_MS 1 // lower limit for LVGL task sleep
 
 extern uint32_t touch_timer;
+extern bool schedule_ready;
 
 /* Tell LVGL how many ms has elapsed - required for timers and animations */
 void increase_lvgl_tick(void *arg)
@@ -57,7 +58,8 @@ void lvgl_port_task(void *arg)
 /* Initialize Wi-Fi connection after boot */
 void api_task(void *pv)
 {
-    vTaskDelay(pdMS_TO_TICKS(200));
+            vTaskDelay(pdMS_TO_TICKS(200));
+
     wifi_init_sta();
     vTaskDelete(NULL);
 }
@@ -72,7 +74,7 @@ static void sleep_task(void *pv)
         uint32_t now = xTaskGetTickCount();
         uint32_t diff_ms = (now - touch_timer) * portTICK_PERIOD_MS;
 
-        if (diff_ms >= 30000) // 10 s of inactivity
+        if (diff_ms >= 15000) // 10 s of inactivity
         {
             enter_deep_sleep();
             touch_timer = xTaskGetTickCount(); // Reset time after wake
@@ -111,36 +113,54 @@ static void spiffs_init(void)
     }
 }
 
+static void update_task(void *pv)
+{
+    const uint32_t timeout_ms = 20000;
+    uint32_t start = xTaskGetTickCount();
+
+    while (!schedule_ready)
+    {
+        uint32_t elapsed_ms = (xTaskGetTickCount() - start) * portTICK_PERIOD_MS;
+        if (elapsed_ms >= timeout_ms)
+            break;
+
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+
+    enter_deep_sleep();
+    vTaskDelete(NULL);
+}
+
 void app_main(void)
 {
     setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);
     tzset();
 
-    // Initialize LCD
-    ESP_ERROR_CHECK(lcd_init());
-
-    // Initialize touch screen
-    touch_init_i2c_and_driver();
-
-    // Determine the wakeup source
     esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
     bool power_up_boot = (cause == ESP_SLEEP_WAKEUP_UNDEFINED);
+    bool rtc_wakeup = (cause == ESP_SLEEP_WAKEUP_TIMER);
 
     ESP_LOGI("main", "Wakeup cause: %d (%s)", cause,
-             power_up_boot ? "POWER UP" : "WAKE FROM SLEEP");
+             power_up_boot ? "POWER UP" :
+             rtc_wakeup ? "RTC TIMER" :
+             "TOUCH / OTHER");
 
-    wakeup_init();
+    ESP_ERROR_CHECK(lcd_init());
+    ESP_ERROR_CHECK(touch_init_i2c_and_driver());
+    ESP_ERROR_CHECK(wakeup_init());
     spiffs_init();
 
-    // Decide whether to fetch new schedule or load cached one
-    if (power_up_boot)
+    if (power_up_boot || rtc_wakeup)
     {
+        ch422g_set_disp(false);
         xTaskCreatePinnedToCore(api_task, "wifi", 4096, NULL, 3, NULL, 0);
+        xTaskCreatePinnedToCore(update_task, "update_sleep", 4096, NULL, 4, NULL, 0);
+        return;
     }
-    else
-    {
-        load_schedule_from_file();
-    }
+
+    ch422g_set_disp(true);
+
+    load_schedule_from_file();
 
     lvgl_lock_init();
 
