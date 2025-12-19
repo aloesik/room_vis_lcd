@@ -58,7 +58,7 @@ void lvgl_port_task(void *arg)
 /* Initialize Wi-Fi connection after boot */
 void api_task(void *pv)
 {
-            vTaskDelay(pdMS_TO_TICKS(200));
+    vTaskDelay(pdMS_TO_TICKS(200));
 
     wifi_init_sta();
     vTaskDelete(NULL);
@@ -133,6 +133,7 @@ static void update_task(void *pv)
 
 void app_main(void)
 {
+    esp_deep_sleep_start();
     setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);
     tzset();
 
@@ -141,25 +142,28 @@ void app_main(void)
     bool rtc_wakeup = (cause == ESP_SLEEP_WAKEUP_TIMER);
 
     ESP_LOGI("main", "Wakeup cause: %d (%s)", cause,
-             power_up_boot ? "POWER UP" :
-             rtc_wakeup ? "RTC TIMER" :
-             "TOUCH / OTHER");
+             power_up_boot ? "POWER UP" : rtc_wakeup ? "RTC TIMER"
+                                                     : "TOUCH / OTHER");
 
-    ESP_ERROR_CHECK(lcd_init());
     ESP_ERROR_CHECK(touch_init_i2c_and_driver());
     ESP_ERROR_CHECK(wakeup_init());
+    ch422g_set_disp(false);
     spiffs_init();
 
     if (power_up_boot || rtc_wakeup)
     {
-        ch422g_set_disp(false);
         xTaskCreatePinnedToCore(api_task, "wifi", 4096, NULL, 3, NULL, 0);
         xTaskCreatePinnedToCore(update_task, "update_sleep", 4096, NULL, 4, NULL, 0);
         return;
     }
 
-    ch422g_set_disp(true);
+    while (1)
+    {
+        ESP_LOGI("pwr", "test");
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
 
+    ESP_ERROR_CHECK(lcd_init());
     load_schedule_from_file();
 
     lvgl_lock_init();
@@ -206,6 +210,8 @@ void app_main(void)
     lvgl_lock_acquire();
     lvgl_create_gui(display);
     lvgl_lock_release();
+
+    ch422g_set_disp(true);
 
     // Background sleep monitoring task
     xTaskCreatePinnedToCore(sleep_task, "sleep_task", 4096, NULL, 1, NULL, 0);

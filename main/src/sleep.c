@@ -17,8 +17,8 @@
 #define CH422G_EXIO2 (1 << 2)
 
 /* Wake once per day at 06:00 (local time, uses TZ set in main) */
-#define RTC_WAKEUP_HOUR 6
-#define RTC_WAKEUP_MIN  0
+#define RTC_WAKEUP_HOUR 23
+#define RTC_WAKEUP_MIN  30
 
 static const char *TAG_WAKE = "wake";
 static const char *TAG_SLEEP = "sleep";
@@ -88,24 +88,35 @@ esp_err_t wakeup_init(void)
     return ESP_OK;
 }
 
-void enter_deep_sleep(void)
+static void touch_wait_int_release(void)
 {
-    /* Configure wake sources */
-    ESP_ERROR_CHECK(wakeup_init());
-
-    /* Turn display off before sleep */
-    ch422g_set_disp(false);
-    ESP_LOGI(TAG_SLEEP, "Backlight turned off");
-
-    /* Keep wake pin stable HIGH during sleep (ANY_LOW) */
+    /* Make sure RTC pull config is sane for EXT1 */
     rtc_gpio_init(EXT1_WAKEUP_PIN);
     rtc_gpio_set_direction(EXT1_WAKEUP_PIN, RTC_GPIO_MODE_INPUT_ONLY);
     rtc_gpio_pulldown_dis(EXT1_WAKEUP_PIN);
     rtc_gpio_pullup_en(EXT1_WAKEUP_PIN);
 
-    touch_clear_pending_int();
-    vTaskDelay(pdMS_TO_TICKS(50));
+    /* Try to clear pending GT911 INT and wait for line to go HIGH */
+    for (int i = 0; i < 50; i++) // 50 * 10ms = 500ms max
+    {
+        if (rtc_gpio_get_level(EXT1_WAKEUP_PIN) == 1)
+            return;
 
-    ESP_LOGI(TAG_SLEEP, "Entering deep sleep...");
+        touch_clear_pending_int();
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+
+    /* If still low here, EXT1 will wake immediately. */
+    ESP_LOGW("sleep", "EXT1 pin GPIO%d still LOW before sleep", EXT1_WAKEUP_PIN);
+}
+
+void enter_deep_sleep(void)
+{
+    ESP_ERROR_CHECK(wakeup_init());
+
+    touch_wait_int_release();
+
+    ch422g_set_disp(false);
+    ESP_LOGI("sleep", "Entering deep sleep...");
     esp_deep_sleep_start();
 }
