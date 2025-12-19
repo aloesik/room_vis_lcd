@@ -133,7 +133,6 @@ static void update_task(void *pv)
 
 void app_main(void)
 {
-    esp_deep_sleep_start();
     setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);
     tzset();
 
@@ -155,12 +154,6 @@ void app_main(void)
         xTaskCreatePinnedToCore(api_task, "wifi", 4096, NULL, 3, NULL, 0);
         xTaskCreatePinnedToCore(update_task, "update_sleep", 4096, NULL, 4, NULL, 0);
         return;
-    }
-
-    while (1)
-    {
-        ESP_LOGI("pwr", "test");
-        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
     ESP_ERROR_CHECK(lcd_init());
@@ -208,7 +201,7 @@ void app_main(void)
 
     // Lock the mutex due to the LVGL APIs are not thread-safe
     lvgl_lock_acquire();
-    lvgl_create_gui(display);
+    lvgl_create_gui();
     lvgl_lock_release();
 
     ch422g_set_disp(true);
