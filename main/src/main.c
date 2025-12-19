@@ -201,7 +201,7 @@ void app_main(void)
 
     // Lock the mutex due to the LVGL APIs are not thread-safe
     lvgl_lock_acquire();
-    lvgl_create_gui(display);
+    lvgl_create_gui();
     lvgl_lock_release();
 
     ch422g_set_disp(true);

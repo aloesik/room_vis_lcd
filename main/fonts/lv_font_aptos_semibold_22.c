@@ -31,7 +31,7 @@
  *----------------*/
 
 /*Store the image of the glyphs*/
-LV_ATTRIBUTE_LARGE_CONST static const uint8_t glyph_bitmap[] __attribute__((section(".ext_ram"))) = {
+LV_ATTRIBUTE_LARGE_CONST static const uint8_t glyph_bitmap[] = {
     /* U+0020 " " */
 
     /* U+0021 "!" */
